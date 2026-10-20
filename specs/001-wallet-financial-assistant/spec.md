@@ -118,6 +118,7 @@ Como auditor de compliance, quiero rastrear cada decisión del asistente mediant
 - Una interacción bloqueada igualmente genera su identificador de traza y su registro de auditoría.
 - Una pregunta que menciona PII de un tercero (ej. "¿cuál es el saldo de María Pérez?"): se responde sin exponer datos del tercero.
 - Confirmación fuera de canal: cualquier intento del modelo de invocar o simular la confirmación es ignorado; solo una acción explícita y separada, ligada al ID del borrador, puede ejecutarla.
+- Un destinatario ambiguo al preparar la transferencia (p. ej. dos usuarios llamados María): el asistente pide aclaración y no crea el borrador hasta identificar un único destinatario.
 
 ## Requirements *(obligatorio)*
 
