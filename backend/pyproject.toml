@@ -1,0 +1,27 @@
+[project]
+name = "wallet-ai"
+version = "0.1.0"
+description = "Add your description here"
+readme = "README.md"
+authors = [
+    { name = "wschub", email = "dev.wschub@gmail.com" }
+]
+requires-python = ">=3.14"
+dependencies = [
+    "fastapi>=0.156.2",
+    "uvicorn[standard]>=0.54.0",
+]
+
+[project.scripts]
+wallet-ai = "wallet_ai:main"
+
+[build-system]
+requires = ["uv_build>=0.11.17,<0.12.0"]
+build-backend = "uv_build"
+
+[dependency-groups]
+dev = [
+    "pytest>=9.1.1",
+    "pytest-asyncio>=1.4.0",
+    "ruff>=0.17.1",
+]
