@@ -8,6 +8,12 @@
 
 **Input**: User description: "Wallet simulado con asistente financiero. Usuarios con roles (cliente, soporte, compliance) pueden: 1) Mantener cuentas y hacer transferencias P2P con un ledger de doble entrada inmutable e idempotencia. 2) Hacer preguntas en lenguaje natural sobre políticas del producto y obtener respuestas con citas, sujetas al nivel de acceso de cada documento (público, cliente, interno). 3) Consultar saldo y movimientos propios mediante el asistente, que puede preparar (no ejecutar) una transferencia que el usuario debe confirmar. 4) Ser protegidos por guardrails: detección de prompt injection y exfiltración, enmascaramiento de PII y verificación de que las respuestas estén respaldadas por fuentes. 5) Que compliance pueda auditar cada decisión del asistente (qué recuperó, qué herramienta llamó, qué bloqueó) mediante un identificador de traza. Éxito: métricas de recuperación y fidelidad medidas con un dataset dorado de 30 a 50 preguntas, y una suite adversarial donde ningún caso filtra PII ni documentos sin permiso."
 
+## Clarifications
+
+### Session 2026-10-20
+
+- Q: ¿Cómo debe confirmarse un borrador de transferencia para que solo un humano pueda disparar el movimiento de dinero? → A: Acción explícita y separada, ligada únicamente al identificador del borrador: el modelo no la interpreta ni puede invocarla, y el servicio valida la propiedad del borrador antes de ejecutar.
+
 ## Escenarios de Usuario y Pruebas *(obligatorio)*
 
 ### User Story 1 - Ledger de doble entrada y transferencias P2P (Priority: P1)
@@ -41,7 +47,7 @@ Como cliente, quiero conversar con el asistente para consultar mi saldo y mis mo
 1. **Given** un cliente con saldo X, **When** pregunta su saldo al asistente, **Then** el asistente responde X y no cambia nada.
 2. **Given** un cliente pregunta sus movimientos, **Then** el asistente lista solo los movimientos propios y ninguno de otros usuarios.
 3. **Given** una petición de transferencia dentro de la conversación, **When** el asistente la interpreta, **Then** crea un borrador que muestra destinatario y monto, y no se mueve dinero.
-4. **Given** un borrador pendiente, **When** el usuario lo confirma, **Then** la transferencia se ejecuta contra el ledger bajo las reglas de la Historia 1.
+4. **Given** un borrador pendiente, **When** el usuario lo confirma mediante la acción explícita y separada ligada al identificador del borrador, **Then** la transferencia se ejecuta contra el ledger bajo las reglas de la Historia 1.
 5. **Given** un borrador pendiente, **When** el usuario lo rechaza o no lo confirma antes de expirar, **Then** el borrador se cancela sin efecto en el ledger.
 6. **Given** el usuario A pregunta por el saldo del usuario B, **Then** el asistente se niega y no revela datos de B.
 
@@ -94,7 +100,7 @@ Como auditor de compliance, quiero rastrear cada decisión del asistente mediant
 1. **Given** cualquier respuesta del asistente, **Then** esta porta un identificador de traza único.
 2. **Given** un identificador de traza, **When** compliance lo inspecciona, **Then** la cadena completa de decisiones es reconstruible: documentos recuperados, herramientas invocadas, bloqueos y desenlace.
 3. **Given** una interacción bloqueada por guardrails, **Then** la auditoría registra qué se bloqueó y el motivo, asociado a la misma traza.
-4. **Given** los registros de auditoría, **Then** no pueden alterarse después de su creación; el rol compliance puede consultarlos y el rol cliente no.
+4. **Given** los registros de auditoría, **Then** no pueden alterarse después de su creación; únicamente el rol compliance puede consultarlos (ningún otro rol puede acceder a la auditoría).
 
 ---
 
@@ -111,6 +117,7 @@ Como auditor de compliance, quiero rastrear cada decisión del asistente mediant
 - PII presente en el contenido recuperado de un documento: se enmascarada antes de llegar al modelo y a cualquier registro.
 - Una interacción bloqueada igualmente genera su identificador de traza y su registro de auditoría.
 - Una pregunta que menciona PII de un tercero (ej. "¿cuál es el saldo de María Pérez?"): se responde sin exponer datos del tercero.
+- Confirmación fuera de canal: cualquier intento del modelo de invocar o simular la confirmación es ignorado; solo una acción explícita y separada, ligada al ID del borrador, puede ejecutarla.
 
 ## Requirements *(obligatorio)*
 
@@ -124,16 +131,19 @@ Como auditor de compliance, quiero rastrear cada decisión del asistente mediant
 - **FR-006**: El asistente MUST responder preguntas en lenguaje natural sobre las políticas del producto, citando los documentos en los que se basa.
 - **FR-007**: Cada documento de política MUST tener un nivel de acceso (público, cliente, interno); la recuperación y las respuestas MUST filtrar por el rol del usuario en cada petición: cliente ve público+cliente; soporte y compliance ven también lo interno.
 - **FR-008**: El asistente MUST responder preguntas de saldo y movimientos usando únicamente las cuentas del usuario autenticado.
-- **FR-009**: El asistente MUST preparar transferencias como borradores; el dinero NO se mueve hasta la confirmación explícita del usuario; los borradores pueden rechazarse y expiran si no se confirman.
+- **FR-009**: El asistente MUST preparar transferencias como borradores; el dinero NO se mueve hasta la confirmación explícita y separada, ligada al ID del borrador. El modelo NO interpreta ni puede disparar dicha confirmación. Los borradores pueden rechazarse y expiran si no se confirman.
 - **FR-010**: El sistema MUST detectar y bloquear intentos de prompt injection y exfiltración, negándose sin filtrar datos, y registrando el bloqueo.
 - **FR-011**: El sistema MUST enmascarar la PII antes de que alcance al modelo de lenguaje y antes de escribirla en logs o registros de auditoría.
 - **FR-012**: Las respuestas del asistente MUST estar respaldadas por las fuentes recuperadas; el asistente MUST abstenerse de afirmar hechos sin respaldo.
 - **FR-013**: Cada interacción con el asistente MUST portar un identificador de traza único, propagado a recuperación, llamadas a herramientas y llamadas al modelo.
 - **FR-014**: Para cada traza, el sistema MUST persistir un registro de auditoría con los documentos recuperados, las herramientas invocadas, los bloqueos y el desenlace.
-- **FR-015**: Los registros de auditoría MUST ser inmutables y consultables por el rol compliance; los usuarios solo acceden a los suyos.
-- **FR-016**: El sistema MUST incluir un dataset dorado de 30 a 50 preguntas sobre políticas con respuestas esperadas, usado para medir recuperación y fidelidad en cada cambio del pipeline; cada resultado de evaluación MUST registrar el proveedor y el modelo usados.
+- **FR-015**: Los registros de auditoría MUST ser inmutables y consultables ÚNICAMENTE por el rol compliance; ningún otro rol (incluido soporte) puede acceder a ellos. Los usuarios solo acceden a los suyos en lo que corresponda al resto de datos.
+- **FR-016**: El sistema MUST incluir un dataset dorado de 30 a 50 preguntas sobre políticas con respuestas esperadas, usado para medir recuperación y fidelidad; cada resultado de evaluación MUST registrar el proveedor y el modelo usados. La evaluación de calidad con el dataset dorado NO se ejecuta en CI con llaves reales: CI usa únicamente un proveedor simulado para pruebas funcionales y de seguridad. Las métricas de recuperación y fidelidad se miden con un proveedor real o local y se versionan junto al resultado.
 - **FR-017**: El sistema MUST incluir una suite adversarial de inyección, exfiltración y PII; el resultado exigido es cero fugas de PII y cero documentos sin permiso devueltos.
 - **FR-018**: El sistema MUST operar únicamente con datos sintéticos: sin dinero real ni datos de usuarios reales.
+- **FR-019**: El rol soporte SOLO puede acceder a documentos según su nivel de acceso (público/cliente/interno conforme a FR-007); NO puede acceder a cuentas, saldos, movimientos ni a la auditoría de otros usuarios.
+- **FR-020**: El sistema MUST evaluar y comparar al menos tres estrategias de recuperación (p. ej. segmentación, recuperación léxica, vectorial e híbrida, con y sin re-ranking) usando el dataset dorado, generando resultados comparables (mismas preguntas, mismos criterios) y registrando configuración, proveedor y modelo por cada ejecución.
+- **FR-021**: Cada comparación de estrategias de recuperación MUST producir un informe versionado que permita decidir qué configuración usar en producción.
 
 ### Key Entities
 
@@ -141,11 +151,13 @@ Como auditor de compliance, quiero rastrear cada decisión del asistente mediant
 - **Cuenta**: pertenece a un usuario; su saldo se deriva del ledger.
 - **Movimiento (entrada de ledger)**: registro inmutable de un débito y su crédito correspondiente, con monto, cuentas afectadas, timestamp y referencia a la operación.
 - **Transferencia**: movimiento de dinero P2P entre dos cuentas; cuando nace en el asistente, proviene de un borrador.
-- **Borrador de transferencia**: transferencia preparada pero no ejecutada, con destinatario, monto y estado (pendiente, confirmada, rechazada, expirada).
+- **Borrador de transferencia**: transferencia preparada pero no ejecutada, con destinatario, monto, estado (pendiente, confirmada, rechazada, expirada). Su confirmación se realiza mediante una acción explícita y separada, ligada únicamente al identificador del borrador.
 - **Documento de política**: contenido de conocimiento del producto con nivel de acceso (público, cliente, interno).
 - **Interacción**: intercambio entre un usuario y el asistente, identificado por un identificador de traza único.
 - **Evento de auditoría**: decisión persistida (recuperación, llamada a herramienta, bloqueo, respuesta) ligada a una traza y a un usuario.
 - **Dataset dorado**: conjunto versionado de preguntas y respuestas esperadas para la evaluación continua.
+- **Ejecución de evaluación**: registro de una medición (calidad o comparación de estrategias) que incluye configuración de recuperación, proveedor, modelo, métricas, preguntas usadas, fecha y resultado.
+- **Informe de comparación de recuperación**: informe versionado que documenta las estrategias probadas, sus métricas comparables y la configuración recomendada.
 
 ## Success Criteria *(obligatorio)*
 
@@ -153,20 +165,22 @@ Como auditor de compliance, quiero rastrear cada decisión del asistente mediant
 
 - **SC-001**: Cada cambio del pipeline del asistente mide recuperación y fidelidad con el dataset dorado (30–50 preguntas) y registra proveedor y modelo del run; 100% de los cambios de pipeline cuentan con un resultado registrado antes de fusionarse.
 - **SC-002**: En la suite adversarial, 0 de los casos filtran PII ni devuelven documentos sin permiso (100% de bloqueo o enmascaramiento).
-- **SC-003**: Sobre el dataset dorado, 100% de las respuestas del asistente incluyen citas verificables a fuentes accesibles y ≥ 90% de las respuestas son fieles a sus fuentes (sin afirmaciones inventadas).
-- **SC-004**: 100% de las interacciones con el asistente son trazables de extremo a extremo: cualquier decisión puede reconstruirse a partir de su identificador de traza.
+- **SC-003**: Las métricas de fidelidad y citas se miden con el dataset dorado usando un proveedor real o local (fuera de CI con proveedor simulado). Los valores objetivo de fidelidad son metas a recalibrar tras obtener el baseline; 100% de las respuestas deben incluir citas verificables a fuentes accesibles (sin afirmaciones inventadas). Cada medición se registra junto a proveedor y modelo.
+- **SC-004**: 100% de las interacciones del asistente por idioma/flujo dentro del alcance son trazables de extremo a extremo: cualquier decisión puede reconstruirse a partir de su identificador de traza.
 - **SC-005**: Reintentos idempotentes: reenviar una transferencia N veces produce exactamente 1 efecto en el ledger (100% en pruebas de reintentos y concurrencia).
-- **SC-006**: 0 movimientos de dinero originados solo por el asistente: toda transferencia ejecutada tiene una confirmación humana explícita en su traza.
-- **SC-007**: ≥ 80% de recuperación correcta sobre el dataset dorado (el asistente encuentra el documento que responde la pregunta entre sus resultados).
+- **SC-006**: 0 movimientos de dinero originados solo por el asistente: toda transferencia ejecutada tiene una confirmación humana explícita, realizada mediante una acción separada ligada al ID del borrador, registrada en la traza. No se acepta confirmación inferida por el modelo.
+- **SC-007**: La métrica de recuperación correcta se mide con el dataset dorado con un proveedor real o local (fuera de CI con proveedor simulado). Es una meta a recalibrar tras el baseline; las mediciones deben registrarse junto a proveedor, modelo, configuración de recuperación y segmento de preguntas.
 - **SC-008**: En los flujos de la suite dorada, un cliente resuelve saldo, movimientos o una consulta de política en una sola conversación sin escalar a soporte (≥ 90% de tareas completadas a la primera).
+- **SC-009**: El sistema evalúa y compara al menos tres estrategias de recuperación (segmentación, léxica/vectorial/híbrida, con y sin re-ranking) con el mismo dataset dorado y criterios idénticos; existe un informe de comparación versionado con resultados comparables, registro de configuración/proveedor/modelo por ejecución, y una decisión documentada sobre la estrategia seleccionada.
 
 ## Assumptions
 
 - Autenticación: se usa un mecanismo de sesión estándar sobre usuarios sintéticos precreados; el detalle del método queda fuera de esta especificación.
 - Moneda única sintética, sin tipos de cambio, límites regulatorios ni verificación de identidad real.
 - El nivel de acceso es por documento y se evalúa contra el rol del usuario en cada petición, no al inicio de la sesión.
-- La confirmación de un borrador es una acción explícita del usuario dentro de la conversación (p. ej. "confirmo"); no se requiere segundo factor.
+- La confirmación de un borrador se realiza únicamente mediante una acción explícita y separada, ligada al identificador del borrador; el modelo no puede interpretarla ni invocarla. No se requiere segundo factor.
 - Los borradores sin confirmar expiran tras un tiempo razonable (defecto: 15 minutos) sin efecto en el ledger.
-- Soporte y compliance comparten acceso a documentos internos; solo compliance accede a la auditoría completa y cada usuario a la suya.
-- Umbrales de referencia para la primera versión (ajustables antes del release): recuperación correcta ≥ 80% (SC-007) y fidelidad ≥ 90% (SC-003), medidos sobre el dataset dorado.
-- El sistema corre y se demuestra sin llaves de API externas usando un proveedor simulado determinista (consistente con la constitución del proyecto).
+- Soporte SOLO accede a documentos según su nivel de acceso; NO accede a cuentas, saldos, movimientos ni a la auditoría. Solo compliance accede a la auditoría completa.
+- Las métricas de calidad (recuperación/fidelidad) se recalibran tras obtener el baseline con proveedor real o local; los umbrales numéricos iniciales son metas, no requisitos bloqueantes heredados sin revalidación.
+- El sistema corre y se demuestra sin llaves de API externas usando un proveedor simulado determinista (consistente con la constitución del proyecto). Las pruebas funcionales y de seguridad en CI usan ese proveedor simulado; las evaluaciones de calidad se ejecutan fuera de CI con proveedor real o local y se versionan con proveedor y modelo.
+- Se evalúan múltiples estrategias de recuperación para justificar la configuración elegida; las comparaciones deben hacerse bajo las mismas condiciones para ser concluyentes.
