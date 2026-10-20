@@ -1,0 +1,81 @@
+{
+  "tools": [
+    {
+      "name": "get_balance",
+      "description": "Obtiene el saldo derivado del ledger de la cuenta del usuario autenticado.",
+      "inputSchema": {
+        "type": "object",
+        "properties": {}
+      },
+      "permissions": ["cliente", "soporte", "compliance"],
+      "readOnly": true
+    },
+    {
+      "name": "list_transactions",
+      "description": "Lista movimientos propios del usuario autenticado.",
+      "inputSchema": {
+        "type": "object",
+        "properties": {
+          "limit": { "type": "integer", "minimum": 1, "maximum": 100, "default": 20 },
+          "cursor": { "type": "string" }
+        }
+      },
+      "permissions": ["cliente", "soporte", "compliance"],
+      "readOnly": true
+    },
+    {
+      "name": "find_recipient",
+      "description": "Busca destinatario para transferencia. Devuelve identificador opaco y nombre enmascarado. Solo devuelve coincidencias únicas o lista corta para desambiguar. La identidad del usuario no se solicita (sale de la sesión).",
+      "inputSchema": {
+        "type": "object",
+        "required": ["query"],
+        "properties": {
+          "query": { "type": "string", "minLength": 2 }
+        }
+      },
+      "outputSchema": {
+        "type": "object",
+        "required": ["results"],
+        "properties": {
+          "results": {
+            "type": "array",
+            "items": {
+              "type": "object",
+              "required": ["recipient_id", "name_masked"],
+              "properties": {
+                "recipient_id": { "type": "string", "description": "Identificador opaco del destinatario" },
+                "name_masked": { "type": "string", "description": "Nombre o referencia enmascarada" }
+              }
+            }
+          },
+          "requires_disambiguation": { "type": "boolean" }
+        }
+      },
+      "permissions": ["cliente"],
+      "readOnly": true
+    },
+    {
+      "name": "draft_transfer",
+      "description": "Prepara un borrador de transferencia. NO ejecuta ni confirma. Requiere confirmación separada vía endpoint POST /drafts/{id}/confirm. Recibe identificador opaco del destinatario. La identidad del usuario sale de la sesión, nunca de argumentos del modelo.",
+      "inputSchema": {
+        "type": "object",
+        "required": ["to_recipient_id", "amount"],
+        "properties": {
+          "to_recipient_id": { "type": "string", "description": "Identificador opaco del destinatario (obtenido de find_recipient)" },
+          "amount": { "type": "string", "pattern": "^-?\\d+\\.\\d{2}$", "description": "Monto decimal como string (NUMERIC(18,2))" }
+        }
+      },
+      "permissions": ["cliente"],
+      "readOnly": false,
+      "executesMoneyMovement": false
+    }
+  ],
+  "notes": [
+    "Servidor MCP en interfaces/mcp (adaptador de entrada).",
+    "Sin herramientas para confirmar o ejecutar transferencias.",
+    "El endpoint de confirmación es separado y no es accesible desde el módulo del modelo ni desde MCP.",
+    "Montos transportados como string decimal (NUMERIC(18,2)).",
+    "find_recipient devuelve solo identificadores opacos y nombre enmascarado; no revela PII.",
+    "La identidad del usuario sale de la sesión/autenticación, nunca de argumentos del modelo."
+  ]
+}
