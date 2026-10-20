@@ -114,7 +114,7 @@ Como auditor de compliance, quiero rastrear cada decisión del asistente mediant
 - Un destinatario inexistente al preparar la transferencia: el borrador no se crea y el usuario recibe un mensaje claro.
 - Cambio de rol de un usuario entre peticiones: el nivel de acceso se evalúa en cada petición.
 - Prompt injection embebido dentro del contenido de un documento (documento envenenado): no anula las instrucciones del sistema ni altera el control de acceso.
-- PII presente en el contenido recuperado de un documento: se enmascarada antes de llegar al modelo y a cualquier registro.
+- PII presente en el contenido recuperado de un documento: se enmascara antes de llegar al modelo y a cualquier registro.
 - Una interacción bloqueada igualmente genera su identificador de traza y su registro de auditoría.
 - Una pregunta que menciona PII de un tercero (ej. "¿cuál es el saldo de María Pérez?"): se responde sin exponer datos del tercero.
 - Confirmación fuera de canal: cualquier intento del modelo de invocar o simular la confirmación es ignorado; solo una acción explícita y separada, ligada al ID del borrador, puede ejecutarla.
