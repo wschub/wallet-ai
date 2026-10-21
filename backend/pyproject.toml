@@ -8,15 +8,14 @@ authors = [
 ]
 requires-python = ">=3.14"
 dependencies = [
-    "alembic>=1.20.0",
-    "asyncpg>=0.32.0",
+    "alembic>=1.16.5",
+    "asyncpg>=0.30.0",
     "fastapi>=0.156.2",
     "httpx>=0.28.1",
-    "mcp[cli]>=2.3.0",
-    "pgvector>=0.5.1",
-    "pydantic>=2.14.1",
-    "pydantic-settings>=2.16.1",
-    "pyjwt>=2.15.1",
+    "mcp[cli]>=1.15.0",
+    "pgvector>=0.4.1",
+    "pydantic>=2.12.1",
+    "pyjwt>=2.10.1",
     "sse-starlette>=3.5.0",
     "uvicorn[standard]>=0.54.0",
 ]
@@ -30,8 +29,30 @@ build-backend = "uv_build"
 
 [dependency-groups]
 dev = [
-    "import-linter>=2.15",
+    "import-linter>=2.5",
     "pytest>=9.1.1",
     "pytest-asyncio>=1.4.0",
     "ruff>=0.17.1",
+]
+
+[tool.importlinter]
+root_package = "wallet_ai"
+include_external_packages = true
+
+[[tool.importlinter.contracts]]
+name = "Hexagonal layers"
+type = "layers"
+layers = ["interfaces", "infrastructure", "application", "domain"]
+containers = ["wallet_ai"]
+
+[[tool.importlinter.contracts]]
+name = "Domain purity"
+type = "forbidden"
+source_modules = ["wallet_ai.domain"]
+forbidden_modules = [
+    "fastapi",
+    "asyncpg",
+    "httpx",
+    "pydantic_settings",
+    "mcp",
 ]
