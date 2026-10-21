@@ -1,0 +1,77 @@
+{
+  "tools": [
+    {
+      "name": "get_balance",
+      "description": "Obtiene el saldo derivado del ledger de la cuenta del usuario autenticado.",
+      "inputSchema": { "type": "object", "properties": {} },
+      "permissions": ["cliente", "soporte", "compliance"],
+      "readOnly": true
+    },
+    {
+      "name": "list_transactions",
+      "description": "Lista movimientos propios.",
+      "inputSchema": {
+        "type": "object",
+        "properties": {
+          "limit": { "type": "integer", "minimum": 1, "maximum": 100, "default": 20 },
+          "cursor": { "type": "string" }
+        }
+      },
+      "permissions": ["cliente", "soporte", "compliance"],
+      "readOnly": true
+    },
+    {
+      "name": "find_recipient",
+      "description": "Busca destinatario. Devuelve recipient_id (handle opaco) ligado al usuario solicitante, name_masked y expires_at. Nunca devuelve IDs de cuenta. Vence en 15 min.",
+      "inputSchema": {
+        "type": "object",
+        "required": ["query"],
+        "properties": {
+          "query": { "type": "string", "minLength": 2 },
+          "limit": { "type": "integer", "minimum": 1, "maximum": 20, "default": 5 }
+        }
+      },
+      "outputSchema": {
+        "type": "object",
+        "required": ["results"],
+        "properties": {
+          "results": {
+            "type": "array",
+            "items": {
+              "type": "object",
+              "required": ["recipient_id", "name_masked", "expires_at"],
+              "properties": {
+                "recipient_id": { "type": "string", "description": "Handle opaco (RecipientHandle)" },
+                "name_masked": { "type": "string" },
+                "expires_at": { "type": "string", "format": "date-time" }
+              }
+            }
+          },
+          "requires_disambiguation": { "type": "boolean" }
+        }
+      },
+      "permissions": ["cliente"],
+      "readOnly": true
+    },
+    {
+      "name": "draft_transfer",
+      "description": "Prepara borrador con recipient_id (handle). NO ejecuta ni confirma. Expiración/propiedad validadas. Identidad usuario desde sesión.",
+      "inputSchema": {
+        "type": "object",
+        "required": ["recipient_id", "amount"],
+        "properties": {
+          "recipient_id": { "type": "string", "description": "Handle opaco (find_recipient)" },
+          "amount": { "type": "string", "pattern": "^\\d+\\.\\d{2}$" }
+        }
+      },
+      "permissions": ["cliente"],
+      "readOnly": false,
+      "executesMoneyMovement": false
+    }
+  ],
+  "notes": [
+    "Handles opacos ligados al solicitante, vencen 15 min.",
+    "Nunca aceptar IDs de cuenta directos.",
+    "Confirmación via endpoint separado (no MCP/modelo)."
+  ]
+}
