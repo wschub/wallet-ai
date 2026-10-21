@@ -10,7 +10,11 @@ defaults:
 
 jobs:
   test:
-    runs-on: ubuntu-latest
+    runs-on: ubuntu-24.04
+    strategy:
+      fail-fast: false
+      matrix:
+        python: ["3.12", "3.14"]
     env:
       LLM_PROVIDER: fake
       LLM_MODEL: fake
@@ -19,6 +23,6 @@ jobs:
     steps:
       - uses: actions/checkout@v4
       - uses: astral-sh/setup-uv@v4
-      - run: uv sync --frozen
+      - run: uv sync --frozen --python ${{ matrix.python }}
       - run: uv run ruff check .
       - run: uv run pytest -q
