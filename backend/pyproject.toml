@@ -6,7 +6,7 @@ readme = "README.md"
 authors = [
     { name = "wschub", email = "dev.wschub@gmail.com" }
 ]
-requires-python = ">=3.14"
+requires-python = ">=3.12"
 dependencies = [
     "alembic>=1.16.5",
     "asyncpg>=0.30.0",
