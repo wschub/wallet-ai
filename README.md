@@ -1,3 +1,5 @@
+![CI](https://github.com/wschub/wallet-ai/actions/workflows/ci.yml/badge.svg)
+
 # Wallet AI
 
 Simulated digital wallet with a financial assistant: advanced RAG, MCP tools, guardrails and traceability.
