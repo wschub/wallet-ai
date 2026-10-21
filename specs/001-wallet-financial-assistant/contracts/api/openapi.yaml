@@ -1,11 +1,12 @@
 openapi: 3.0.3
 info:
   title: Wallet AI API
-  description: Wallet simulado con asistente financiero (hexagonal, SSE, borradores con confirmación separada)
+  description: Wallet simulado con asistente financiero (hexagonal, SSE, borradores con confirmación separada y handles opacos)
   version: 1.0.0
 tags:
   - name: auth
   - name: accounts
+  - name: recipients
   - name: drafts
   - name: chat
   - name: audit
@@ -13,7 +14,6 @@ paths:
   /auth/login:
     post:
       tags: [auth]
-      summary: Login con usuario sintético
       requestBody:
         required: true
         content:
@@ -29,54 +29,75 @@ paths:
                 $ref: '#/components/schemas/TokenResponse'
         '401':
           $ref: '#/components/responses/Unauthorized'
+
   /accounts/me:
     get:
       tags: [accounts]
-      summary: Cuenta y saldo derivado del ledger (solo propia)
       security:
         - bearerAuth: []
       responses:
         '200':
-          description: Saldo
+          description: Saldo derivado del ledger
           content:
             application/json:
               schema:
                 $ref: '#/components/schemas/AccountBalance'
         '401':
           $ref: '#/components/responses/Unauthorized'
+
   /accounts/me/transactions:
     get:
       tags: [accounts]
-      summary: Movimientos propios
       security:
         - bearerAuth: []
       parameters:
         - name: limit
           in: query
-          required: false
-          schema:
-            type: integer
-            minimum: 1
-            maximum: 100
-            default: 20
+          schema: { type: integer, minimum: 1, maximum: 100, default: 20 }
         - name: cursor
           in: query
-          required: false
-          schema:
-            type: string
+          schema: { type: string }
       responses:
         '200':
-          description: Lista paginada de movimientos
+          description: Lista paginada
           content:
             application/json:
               schema:
                 $ref: '#/components/schemas/PaginatedTransactions'
         '401':
           $ref: '#/components/responses/Unauthorized'
+
+  /recipients:
+    get:
+      tags: [recipients]
+      summary: Buscar destinatarios. Devuelve handle opaco y nombre enmascarado. Compartido con MCP find_recipient.
+      security:
+        - bearerAuth: []
+      parameters:
+        - name: q
+          in: query
+          required: true
+          schema: { type: string, minLength: 2 }
+        - name: limit
+          in: query
+          schema: { type: integer, minimum: 1, maximum: 20, default: 5 }
+        - name: cursor
+          in: query
+          schema: { type: string }
+      responses:
+        '200':
+          description: Lista paginada de destinatarios con handle
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/PaginatedRecipients'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+
   /drafts:
     post:
       tags: [drafts]
-      summary: Crear borrador de transferencia (prepara, no ejecuta)
+      summary: Crear borrador con recipient_id (handle). Nunca acepta ID de cuenta directo.
       security:
         - bearerAuth: []
       requestBody:
@@ -92,39 +113,36 @@ paths:
             application/json:
               schema:
                 $ref: '#/components/schemas/Draft'
-        '401':
-          $ref: '#/components/responses/Unauthorized'
-        '404':
-          $ref: '#/components/responses/NotFound'
+        '401': { $ref: '#/components/responses/Unauthorized' }
+        '403': { $ref: '#/components/responses/Forbidden' }
+        '404': { $ref: '#/components/responses/NotFound' }
+        '409': { $ref: '#/components/responses/Conflict' }
     get:
       tags: [drafts]
-      summary: Listar borradores propios
       security:
         - bearerAuth: []
       responses:
         '200':
-          description: Lista de borradores
+          description: Borradores propios
           content:
             application/json:
               schema:
                 type: array
                 items:
                   $ref: '#/components/schemas/Draft'
-        '401':
-          $ref: '#/components/responses/Unauthorized'
+        '401': { $ref: '#/components/responses/Unauthorized' }
+
   /drafts/{id}/confirm:
     post:
       tags: [drafts]
-      summary: Confirmación explícita y separada (solo humano). El modelo/MCP no accede a este endpoint. Expiración evaluada al confirmar. Clave de idempotencia = ID del borrador.
+      summary: Confirmación separada. Expiración evaluada al confirmar. Idempotencia por draft_id.
       security:
         - bearerAuth: []
       parameters:
         - name: id
           in: path
           required: true
-          schema:
-            type: string
-            format: uuid
+          schema: { type: string, format: uuid }
       responses:
         '200':
           description: Transferencia ejecutada
@@ -132,44 +150,31 @@ paths:
             application/json:
               schema:
                 $ref: '#/components/schemas/TransferExecuted'
-        '401':
-          $ref: '#/components/responses/Unauthorized'
-        '403':
-          $ref: '#/components/responses/Forbidden'
-        '404':
-          $ref: '#/components/responses/NotFound'
-        '409':
-          description: Ya confirmada, expirada o en conflicto de idempotencia
-          content:
-            application/json:
-              schema:
-                $ref: '#/components/schemas/Error'
+        '401': { $ref: '#/components/responses/Unauthorized' }
+        '403': { $ref: '#/components/responses/Forbidden' }
+        '404': { $ref: '#/components/responses/NotFound' }
+        '409': { $ref: '#/components/responses/Conflict' }
+
   /drafts/{id}/reject:
     post:
       tags: [drafts]
-      summary: Rechazar borrador propio
       security:
         - bearerAuth: []
       parameters:
         - name: id
           in: path
           required: true
-          schema:
-            type: string
-            format: uuid
+          schema: { type: string, format: uuid }
       responses:
-        '200':
-          description: Borrador rechazado
-        '401':
-          $ref: '#/components/responses/Unauthorized'
-        '403':
-          $ref: '#/components/responses/Forbidden'
-        '404':
-          $ref: '#/components/responses/NotFound'
+        '200': { description: Rechazado }
+        '401': { $ref: '#/components/responses/Unauthorized' }
+        '403': { $ref: '#/components/responses/Forbidden' }
+        '404': { $ref: '#/components/responses/NotFound' }
+
   /chat/stream:
     post:
       tags: [chat]
-      summary: Chat con asistente por SSE (streaming). No puede confirmar borradores. trace_id se devuelve en el primer evento SSE y en header.
+      summary: SSE. trace_id en header X-Trace-Id y en primer evento SSE.
       security:
         - bearerAuth: []
       requestBody:
@@ -180,54 +185,41 @@ paths:
               $ref: '#/components/schemas/ChatRequest'
       responses:
         '200':
-          description: Stream SSE. Header incluye X-Trace-Id. Primer evento SSE incluye trace_id.
+          description: text/event-stream
           headers:
             X-Trace-Id:
-              description: Identificador de traza
-              schema:
-                type: string
+              schema: { type: string }
           content:
             text/event-stream:
-              schema:
-                type: string
-        '401':
-          $ref: '#/components/responses/Unauthorized'
+              schema: { type: string }
+        '401': { $ref: '#/components/responses/Unauthorized' }
+
   /audit:
     get:
       tags: [audit]
-      summary: Consulta de auditoría. SOLO compliance. Paginación con limit+cursor.
+      summary: Solo compliance, paginado
       security:
         - bearerAuth: []
       parameters:
         - name: trace_id
           in: query
-          required: false
-          schema:
-            type: string
+          schema: { type: string }
         - name: limit
           in: query
-          required: false
-          schema:
-            type: integer
-            minimum: 1
-            maximum: 100
-            default: 20
+          schema: { type: integer, minimum: 1, maximum: 100, default: 20 }
         - name: cursor
           in: query
-          required: false
-          schema:
-            type: string
+          schema: { type: string }
       responses:
         '200':
-          description: Lista paginada de eventos de auditoría (append-only, PII enmascarado)
+          description: Eventos paginados
           content:
             application/json:
               schema:
                 $ref: '#/components/schemas/PaginatedAuditEvents'
-        '401':
-          $ref: '#/components/responses/Unauthorized'
-        '403':
-          $ref: '#/components/responses/Forbidden'
+        '401': { $ref: '#/components/responses/Unauthorized' }
+        '403': { $ref: '#/components/responses/Forbidden' }
+
 components:
   securitySchemes:
     bearerAuth:
@@ -235,111 +227,22 @@ components:
       scheme: bearer
       bearerFormat: JWT
   responses:
-    Unauthorized:
-      description: No autorizado
-      content:
-        application/json:
-          schema:
-            $ref: '#/components/schemas/Error'
-    Forbidden:
-      description: Prohibido
-      content:
-        application/json:
-          schema:
-            $ref: '#/components/schemas/Error'
-    NotFound:
-      description: No encontrado
-      content:
-        application/json:
-          schema:
-            $ref: '#/components/schemas/Error'
+    Unauthorized: { description: No autorizado, content: { application/json: { schema: { $ref: '#/components/schemas/Error' } } } }
+    Forbidden: { description: Prohibido, content: { application/json: { schema: { $ref: '#/components/schemas/Error' } } } }
+    NotFound: { description: No encontrado, content: { application/json: { schema: { $ref: '#/components/schemas/Error' } } } }
+    Conflict: { description: Conflicto/ya usado/expirado, content: { application/json: { schema: { $ref: '#/components/schemas/Error' } } } }
   schemas:
-    LoginRequest:
-      type: object
-      required: [email, password]
-      properties:
-        email: { type: string }
-        password: { type: string }
-    TokenResponse:
-      type: object
-      required: [access_token]
-      properties:
-        access_token: { type: string }
-    AccountBalance:
-      type: object
-      required: [account_id, balance, currency]
-      properties:
-        account_id: { type: string, format: uuid }
-        balance: { type: string, description: "Decimal como string (NUMERIC(18,2))" }
-        currency: { type: string }
-    Transaction:
-      type: object
-      required: [id, amount, type, created_at]
-      properties:
-        id: { type: string, format: uuid }
-        amount: { type: string, description: "Decimal como string (NUMERIC(18,2))" }
-        type: { type: string, enum: [DEBIT, CREDIT] }
-        created_at: { type: string, format: date-time }
-    PaginatedTransactions:
-      type: object
-      required: [items]
-      properties:
-        items:
-          type: array
-          items:
-            $ref: '#/components/schemas/Transaction'
-        next_cursor:
-          type: string
-          nullable: true
-    DraftCreate:
-      type: object
-      required: [to_recipient_id, amount]
-      properties:
-        to_recipient_id: { type: string, description: "Identificador opaco del destinatario" }
-        amount: { type: string, description: "Decimal como string (NUMERIC(18,2))" }
-    Draft:
-      type: object
-      required: [id, status, amount, expires_at]
-      properties:
-        id: { type: string, format: uuid }
-        status: { type: string, enum: [pendiente, confirmada, rechazada, expirada] }
-        amount: { type: string, description: "Decimal como string (NUMERIC(18,2))" }
-        to_recipient_id: { type: string }
-        expires_at: { type: string, format: date-time }
-    TransferExecuted:
-      type: object
-      required: [transaction_id, draft_id]
-      properties:
-        transaction_id: { type: string, format: uuid }
-        draft_id: { type: string, format: uuid }
-    ChatRequest:
-      type: object
-      required: [message]
-      properties:
-        message: { type: string }
-    AuditEvent:
-      type: object
-      required: [trace_id, event_type, created_at]
-      properties:
-        trace_id: { type: string }
-        event_type: { type: string }
-        payload: { type: object }
-        reason: { type: string }
-        created_at: { type: string, format: date-time }
-    PaginatedAuditEvents:
-      type: object
-      required: [items]
-      properties:
-        items:
-          type: array
-          items:
-            $ref: '#/components/schemas/AuditEvent'
-        next_cursor:
-          type: string
-          nullable: true
-    Error:
-      type: object
-      required: [error]
-      properties:
-        error: { type: string }
-        detail: { type: string }
+    LoginRequest: { type: object, required: [email,password], properties: { email: {type:string}, password: {type:string} } }
+    TokenResponse: { type: object, required: [access_token], properties: { access_token: {type:string} } }
+    AccountBalance: { type: object, required: [account_id,balance,currency], properties: { account_id: {type:string,format:uuid}, balance: {type:string}, currency: {type:string} } }
+    Transaction: { type: object, required: [id,amount,type,created_at], properties: { id: {type:string,format:uuid}, amount: {type:string}, type: {type:string,enum:[DEBIT,CREDIT]}, created_at: {type:string,format:date-time} } }
+    PaginatedTransactions: { type: object, required: [items], properties: { items: {type:array,items:{$ref:'#/components/schemas/Transaction'}}, next_cursor: {type:string,nullable:true} } }
+    Recipient: { type: object, required: [recipient_id,name_masked,expires_at], properties: { recipient_id: {type:string,description:"Handle opaco"}, name_masked: {type:string}, expires_at: {type:string,format:date-time} } }
+    PaginatedRecipients: { type: object, required: [items], properties: { items: {type:array,items:{$ref:'#/components/schemas/Recipient'}}, next_cursor: {type:string,nullable:true} } }
+    DraftCreate: { type: object, required: [recipient_id,amount], properties: { recipient_id: {type:string,description:"Handle opaco emitido por /recipients o find_recipient"}, amount: {type:string,description:"NUMERIC(18,2) como string"} } }
+    Draft: { type: object, required: [id,status,amount,expires_at,recipient_id], properties: { id: {type:string,format:uuid}, status: {type:string,enum:[pendiente,confirmada,rechazada,expirada]}, amount: {type:string}, recipient_id: {type:string}, expires_at: {type:string,format:date-time} } }
+    TransferExecuted: { type: object, required: [transaction_id,draft_id], properties: { transaction_id: {type:string,format:uuid}, draft_id: {type:string,format:uuid} } }
+    ChatRequest: { type: object, required: [message], properties: { message: {type:string} } }
+    AuditEvent: { type: object, required: [trace_id,event_type,created_at], properties: { trace_id: {type:string}, event_type: {type:string}, payload: {type:object}, reason: {type:string}, created_at: {type:string,format:date-time} } }
+    PaginatedAuditEvents: { type: object, required: [items], properties: { items: {type:array,items:{$ref:'#/components/schemas/AuditEvent'}}, next_cursor: {type:string,nullable:true} } }
+    Error: { type: object, required: [error], properties: { error: {type:string}, detail: {type:string} } }

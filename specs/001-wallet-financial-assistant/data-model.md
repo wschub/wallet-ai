@@ -15,17 +15,28 @@
 - `created_at` (timestamptz)
 - **Nota**: saldo derivado del ledger (no almacenado como columna mutable).
 
+### RecipientHandle
+- `id` (UUID, PK)
+- `handle` (texto, único) — identificador opaco emitido por `find_recipient` y usado en `draft_transfer`
+- `requester_user_id` (FK -> Usuario) — el handle queda ligado al usuario solicitante
+- `to_account_id` (FK -> Cuenta) — se resuelve internamente a esta cuenta
+- `name_masked` (texto)
+- `expires_at` (timestamptz) — vence en 15 minutos
+- `used_at` (timestamptz, nullable) — marcado al crear borrador o al consumirlo
+- `created_at` (timestamptz)
+- **Reglas**: se valida propiedad/consumo y expiración al resolver para crear borrador. Nunca acepta IDs de cuenta directos.
+
 ### LedgerTransaction (solo inserción)
 - `id` (UUID, PK)
 - `transaction_type` (enum: `TRANSFER` | `ADJUSTMENT` | `REVERSAL`)
-- `idempotency_key` (texto, único por usuario/cuenta emisora) — clave de idempotencia de la operación de origen
+- `idempotency_key` (texto, único por usuario/cuenta emisora)
 - `from_user_id` (FK -> Usuario, nullable según tipo)
 - `from_account_id` (FK -> Cuenta, nullable)
 - `to_account_id` (FK -> Cuenta, nullable)
 - `amount` (NUMERIC(18,2), positivo)
 - `trace_id` (texto, FK -> Interacción.trace_id)
 - `created_at` (timestamptz)
-- **Reglas**: solo inserción (TRUNCATE bloqueado). Única por `(from_user_id, from_account_id, idempotency_key)` para evitar duplicados.
+- **Reglas**: solo inserción (TRUNCATE bloqueado). Única por `(from_user_id, from_account_id, idempotency_key)`.
 
 ### LedgerEntry (solo inserción)
 - `id` (UUID, PK)
@@ -34,7 +45,7 @@
 - `entry_type` (enum: `DEBIT` | `CREDIT`)
 - `amount` (NUMERIC(18,2), positivo)
 - `created_at` (timestamptz)
-- **Reglas**: inmutable (trigger + permisos + TRUNCATE bloqueado). Cada `transaction_id` debe tener al menos un DEBIT y un CREDIT. Restricción por trigger diferido: suma de DEBIT = suma de CREDIT por `transaction_id`. Bloqueo de TRUNCATE sobre `ledger_entries`, `ledger_transactions` y `audit_events`.
+- **Reglas**: inmutable (trigger + permisos + TRUNCATE bloqueado). Al menos DEBIT y CREDIT por `transaction_id`. Trigger diferido garantiza suma DEBIT = suma CREDIT.
 
 ### Transferencia
 - `id` (UUID, PK)
@@ -43,23 +54,24 @@
 - `amount` (NUMERIC(18,2))
 - `status` (enum: `COMPLETED` | `FAILED`)
 - `transaction_id` (FK -> LedgerTransaction)
-- `draft_id` (UUID, FK -> Borrador de transferencia, único) — la clave de idempotencia de la transferencia confirmada es el id del borrador
+- `draft_id` (UUID, FK -> Borrador de transferencia, único) — clave de idempotencia = id del borrador
 - `confirmed_at` (timestamptz)
 - `created_at` (timestamptz)
-- **Reglas**: no se crea con estado `PENDING`; se crea únicamente al confirmar el borrador.
+- **Reglas**: creada únicamente al confirmar borrador (sin PENDING).
 
 ### Borrador de transferencia
 - `id` (UUID, PK)
 - `user_id` (FK -> Usuario)
 - `from_account_id` (FK)
-- `to_account_id` (FK) — referencia mediante identificador opaco del destinatario (ver contrato MCP)
+- `to_account_id` (FK) — resuelto desde `recipient_id` (handle)
+- `recipient_handle` (texto) — handle usado
 - `amount` (NUMERIC(18,2))
 - `status` (enum: `pendiente` | `confirmada` | `rechazada` | `expirada`)
 - `expires_at` (timestamptz, +15 min)
 - `confirmed_at` (timestamptz, nullable)
 - `trace_id` (texto, FK a interacción)
 - `created_at` (timestamptz)
-- **Reglas**: confirmación vía `POST /drafts/{id}/confirm` (endpoint separado). Solo propietario. La expiración se evalúa al momento de confirmar. Confirmación única. Identidad del usuario siempre proviene de la sesión, nunca de argumentos.
+- **Reglas**: recibe `recipient_id` (handle). Nunca id de cuenta directo. Expiración evaluada al confirmar. Propiedad del handle validada (ligado al solicitante). Handle consumido al crear/confirmar.
 
 ### Documento de política
 - `id` (UUID, PK)
@@ -76,9 +88,9 @@
 - `chunk_index` (int)
 - `text` (texto)
 - `embedding` (vector, pgvector)
-- `embedding_model` (texto)  **obligatorio**
-- `embedding_version` (texto) **obligatorio**
-- `access_level` (enum: `publico` | `cliente` | `interno`) **denormalizado** (para aplicar filtro de ACL antes del ranking/recuperación)
+- `embedding_model` (texto) obligatorio
+- `embedding_version` (texto) obligatorio
+- `access_level` (enum: `publico` | `cliente` | `interno`) denormalizado
 - `created_at` (timestamptz)
 
 ### Interacción
@@ -96,31 +108,30 @@
 - `payload` (JSONB, PII enmascarado)
 - `reason` (texto, nullable)
 - `created_at` (timestamptz)
-- **Reglas**: inmutable (trigger + permisos + TRUNCATE bloqueado). Solo compliance consulta. Sin PII en claro.
+- **Reglas**: inmutable (trigger + permisos + TRUNCATE bloqueado).
 
 ### DatasetDorado
 - `id` (UUID, PK)
 - `name` (texto)
 - `version` (texto)
 - `created_at` (timestamptz)
-- **Items**: `golden_items(id, dataset_id, question, expected_answer, relevant_doc_ids, ...)`
 
 ### EjecuciónEvaluación
 - `id` (UUID, PK)
 - `dataset_id` (FK)
 - `run_type` (enum: `quality` | `strategy_comparison`)
-- `config` (JSONB: segmentación, léxica/vectorial/híbrida, rerank true/false, ...)
+- `config` (JSONB)
 - `provider` (texto)
 - `model` (texto)
-- `metrics` (JSONB: hit@k, mrr, faithfulness, citations_ok, etc.)
+- `judge_model` (texto, nullable)
+- `metrics` (JSONB)
+- `judge_status` (enum: `ok` | `judge_error`, nullable)
 - `trace_id` (texto)
 - `created_at` (timestamptz)
-- **Reglas**: registro obligatorio por cambio de pipeline / comparación.
 
 ### InformeComparacionRecuperacion
 - `id` (UUID, PK)
 - `execution_ids` (UUID[])
 - `summary` (JSONB)
-- `report_path` (texto)  # backend/evals/reports/...
+- `report_path` (texto)
 - `created_at` (timestamptz)
-- **Reglas**: versionado, resultados comparables con mismas preguntas/criterios.

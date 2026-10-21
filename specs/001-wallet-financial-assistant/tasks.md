@@ -25,242 +25,154 @@
 
 ## Phase 1: Setup (Shared Infrastructure)
 
-**Purpose**: Project initialization, CI and basic structure
-
-- [ ] T001 Create backend structure per plan in `backend/` (pyproject.toml, alembic.ini, docker-compose.yml, src/wallet_ai/{domain,application,infrastructure,interfaces}, tests/, evals/)
-- [ ] T002 Initialize Python 3.12+ project with uv and dependencies (fastapi, uvicorn, asyncpg, httpx, pydantic v2, alembic, pgvector, pyjwt, sse-starlette, mcp) in `backend/pyproject.toml`
-- [ ] T003 [P] Configure linting/formatting (ruff) in `backend/pyproject.toml` and `backend/ruff.toml`
+- [ ] T001 Create backend structure per plan in `backend/`
+- [ ] T002 Initialize Python 3.12+ with uv/deps (fastapi, uvicorn, asyncpg, httpx, pydantic v2, alembic, pgvector, pyjwt, sse-starlette, mcp) in `backend/pyproject.toml`
+- [ ] T003 [P] Configure ruff in `backend/pyproject.toml` and `backend/ruff.toml`
 - [ ] T004 [P] Configure pytest + pytest-asyncio in `backend/pyproject.toml`
-- [ ] T005 [P] Add docker-compose for PostgreSQL + pgvector in `backend/docker-compose.yml`
-- [ ] T006 Initialize Alembic in `backend/alembic/` and configure `backend/alembic.ini`
-- [ ] T007 [P] Setup GitHub Actions CI with only fake provider in `.github/workflows/ci.yml` (tests unit/integration/contract/adversarial, no external secrets)
+- [ ] T005 [P] Add docker-compose (Postgres+pgvector) in `backend/docker-compose.yml`
+- [ ] T006 Initialize Alembic in `backend/alembic/` and `backend/alembic.ini`
+- [ ] T007 [P] GitHub Actions CI with only fake provider in `.github/workflows/ci.yml`
 
 ---
 
 ## Phase 2: Foundational (Blocking Prerequisites)
 
-**Purpose**: Core infrastructure that MUST be complete before ANY user story can be implemented. Hexagonal, offline-first, tracing, PII, audit, auth/roles, seeds and architecture tests.
+**⚠️ CRITICAL**: Blocks all user stories
 
-**⚠️ CRITICAL**: No user story work can begin until this phase is complete
+- [ ] T008 Define domain ports in `backend/src/wallet_ai/domain/ports/`
+- [ ] T009 [P] Fake adapters (llm with scripted tool calls, embeddings, reranker) in `backend/src/wallet_ai/infrastructure/providers/fake/`
+- [ ] T010 [P] trace_id + contextvars + structured logging in `backend/src/wallet_ai/infrastructure/tracing/`
+- [ ] T011 [P] PIIService (patterns + Luhn) in `backend/src/wallet_ai/infrastructure/pii/`
+- [ ] T012 Create migrations for users, accounts, RecipientHandle, interactions, audit_events (append-only) in `backend/alembic/versions/` (triggers BEFORE UPDATE/DELETE, TRUNCATE blocked on audit_events; prepare for ledger)
+- [ ] T013 Implement append-only AuditRepository in `backend/src/wallet_ai/infrastructure/db/audit_repository.py`
+- [ ] T014 [P] Auth JWT + roles (cliente/soporte/compliance) in `backend/src/wallet_ai/interfaces/api/deps/auth.py` and `deps/roles.py`
+- [ ] T015 [P] Config/env in `backend/src/wallet_ai/infrastructure/config/`
+- [ ] T016 [P] FastAPI skeleton in `backend/src/wallet_ai/interfaces/api/main.py`
+- [ ] T017 [P] MCP skeleton in `backend/src/wallet_ai/interfaces/mcp/server.py`
+- [ ] T018 [P] Seed script `backend/scripts/seed.py` (usuarios + cuentas)
+- [ ] T019 [P] Architecture tests (domain no importa infrastructure; confirmación aislada) in `backend/tests/architecture/`
 
-- [ ] T008 Define domain ports in `backend/src/wallet_ai/domain/ports/` (LLMProvider, EmbeddingProvider, Reranker, PIIService, DocumentRepository, LedgerRepository, DraftRepository, AuditRepository, TraceContext)
-- [ ] T009 [P] Implement fake deterministic adapters in `backend/src/wallet_ai/infrastructure/providers/fake/` (llm, embeddings, reranker) selectable by env; LLM fake must support scripted tool calls for the assistant
-- [ ] T010 [P] Implement trace_id with contextvars and structured logging in `backend/src/wallet_ai/infrastructure/tracing/` (propagate to retrieval/tools/LLM)
-- [ ] T011 [P] Implement PII service (patterns + Luhn) in `backend/src/wallet_ai/infrastructure/pii/` behind PIIService port; apply before LLM/logs/audit
-- [ ] T012 Create migrations for users, accounts, interactions and audit_events (append-only) in `backend/alembic/versions/` with triggers BEFORE UPDATE/DELETE on audit_events, permissions to prevent UPDATE/DELETE, and TRUNCATE blocked on audit_events (and prepared for ledger tables)
-- [ ] T013 Implement append-only audit repository in `backend/src/wallet_ai/infrastructure/db/audit_repository.py` (only insert)
-- [ ] T014 [P] Implement auth JWT and roles (cliente/soporte/compliance) with synthetic users in `backend/src/wallet_ai/interfaces/api/deps/auth.py` and `backend/src/wallet_ai/interfaces/api/deps/roles.py`
-- [ ] T015 [P] Add config/env management in `backend/src/wallet_ai/infrastructure/config/` (provider selection, no secrets committed)
-- [ ] T016 [P] Setup FastAPI app skeleton in `backend/src/wallet_ai/interfaces/api/main.py` with CORS, error handling, trace middleware
-- [ ] T017 [P] Setup MCP server skeleton in `backend/src/wallet_ai/interfaces/mcp/server.py` (adapter de entrada, sin tools de ejecución/confirmación)
-- [ ] T018 [P] Create seed script `backend/scripts/seed.py` for synthetic users (cliente, soporte, compliance) and accounts with initial balances
-- [ ] T019 [P] Add architecture tests: enforce domain has no imports from infrastructure; only `backend/src/wallet_ai/interfaces/api/routers/drafts.py` and `backend/src/wallet_ai/application/transfers/` may invoke confirmation logic (import-linter or custom test) in `backend/tests/architecture/`
-
-**Checkpoint**: Foundation ready - user story implementation can now begin in parallel
+**Checkpoint**: Foundation ready
 
 ---
 
-## Phase 3: User Story 1 - Ledger de doble entrada y transferencias P2P (Priority: P1) 🎯 MVP
+## Phase 3: User Story 1 - Ledger (P1) 🎯 MVP
 
-**Goal**: Cuentas, ledger de doble entrada inmutable, idempotencia, concurrencia con bloqueo en orden consistente, saldo derivado.
+### Tests (TDD - deben fallar)
+- [ ] T020 [P] [US1] Ledger invariants/idempotency tests in `backend/tests/integration/test_ledger.py` (debe fallar antes de implementar)
+- [ ] T021 [P] [US1] Balance/concurrency tests in `backend/tests/unit/test_ledger.py` (debe fallar antes de implementar)
 
-**Independent Test**: Crear dos cuentas, transferir con idempotency_key, reintentar misma clave → un solo efecto. Intentar UPDATE/DELETE/TRUNCATE → rechazado. Saldo insuficiente → sin cambio. Suma débitos=créditos.
-
-### Tests for User Story 1 (TDD - must fail before implementation) ⚠️
-- [ ] T020 [P] [US1] Contract/integration test for ledger invariants and idempotency in `backend/tests/integration/test_ledger.py` (debe fallar antes de implementar)
-- [ ] T021 [P] [US1] Unit test for balance derivation and concurrency in `backend/tests/unit/test_ledger.py` (debe fallar antes de implementar)
-
-### Implementation for User Story 1
-- [ ] T022 [P] [US1] Create domain entities/value objects for accounts/ledger in `backend/src/wallet_ai/domain/ledger/`
-- [ ] T023 [P] [US1] Create LedgerTransaction/LedgerEntry models/migrations per data-model in `backend/alembic/versions/` (ledger_transactions with idempotency_key único por (from_user_id, from_account_id, idempotency_key), ledger_entries con transaction_id, NUMERIC(18,2))
-- [ ] T024 [US1] Add immutability for ledger: triggers BEFORE UPDATE/DELETE and TRUNCATE blocked on ledger_entries and ledger_transactions; deferred trigger to enforce sum(DEBIT)=sum(CREDIT) per transaction_id in `backend/alembic/versions/`
-- [ ] T025 [US1] Implement ledger repository with row-level locking in consistent order and idempotency in `backend/src/wallet_ai/infrastructure/db/ledger_repository.py`
-- [ ] T026 [US1] Implement ledger application service (balance derivation, transfer validation, no negative balance) in `backend/src/wallet_ai/application/ledger/`
-- [ ] T027 [US1] Add API endpoints for accounts/balance/transactions with pagination (limit,cursor) in `backend/src/wallet_ai/interfaces/api/routers/accounts.py` per contracts
-- [ ] T028 [US1] Run and make US1 tests pass
-
-**Checkpoint**: US1 functional and testable independently
+### Implementation
+- [ ] T022 [P] [US1] Domain ledger entities in `backend/src/wallet_ai/domain/ledger/`
+- [ ] T023 [P] [US1] Migrations ledger_transactions/ledger_entries (NUMERIC(18,2)) in `backend/alembic/versions/`
+- [ ] T024 [US1] Immutability: triggers UPDATE/DELETE/TRUNCATE blocks + deferred sum(DEBIT)=sum(CREDIT) in `backend/alembic/versions/`
+- [ ] T025 [US1] LedgerRepository (locking orden consistente, idempotencia) in `backend/src/wallet_ai/infrastructure/db/ledger_repository.py`
+- [ ] T026 [US1] Ledger service in `backend/src/wallet_ai/application/ledger/`
+- [ ] T027 [US1] Accounts endpoints + pagination in `backend/src/wallet_ai/interfaces/api/routers/accounts.py`
+- [ ] T028 [US1] Hacer pasar tests US1
 
 ---
 
-## Phase 4: User Story 2 - Asistente con saldo/movimientos, borradores, confirmación separada y orquestador (Priority: P2)
+## Phase 4: User Story 2 - Asistente + Borradores + Handles (P2)
 
-**Goal**: Consultas propias, orquestador del asistente con herramientas compartidas, borradores, confirmación vía endpoint separado fuera del canal del modelo/MCP, expiración al confirmar.
+**Depends on**: US1
 
-**Independent Test**: Preguntar saldo/movimientos → solo propios. Orquestador registra llamadas a herramientas. Crear borrador → no mueve dinero. Confirmar vía POST /drafts/{id}/confirm → ejecuta con idempotencia por draft_id. Rechazar/expirar → sin efecto. MCP/modelo no acceden a confirmación.
+### Tests (TDD)
+- [ ] T029 [P] [US2] Drafts/expiración al confirmar + aislamiento en `backend/tests/integration/test_drafts.py` (debe fallar)
+- [ ] T030 [P] [US2] MCP tools (no confirm/execute, handles) en `backend/tests/contract/test_mcp_tools.py` (debe fallar)
+- [ ] T031 [P] [US2] Orchestrator con tool calls scripted en `backend/tests/integration/test_assistant_orchestrator.py` (debe fallar)
+- [ ] T032 [P] [US2] Handles: rechazo de cuenta directa/handle ajeno/expirado/usado en `backend/tests/integration/test_recipients.py` (debe fallar)
 
-**Dependencies**: US1
-
-### Tests for User Story 2 (TDD - must fail before implementation) ⚠️
-- [ ] T029 [P] [US2] Integration test for drafts, expiration on confirm, and confirmation endpoint isolation in `backend/tests/integration/test_drafts.py` (debe fallar antes de implementar)
-- [ ] T030 [P] [US2] Contract test for MCP tools restrictions (no confirm/execute) in `backend/tests/contract/test_mcp_tools.py` (debe fallar antes de implementar)
-- [ ] T031 [P] [US2] Integration test for assistant orchestrator tool calls via fake scripted LLM in `backend/tests/integration/test_assistant_orchestrator.py` (debe fallar antes de implementar)
-
-### Implementation for User Story 2
-- [ ] T032 [P] [US2] Create draft entities/states in `backend/src/wallet_ai/domain/transfers/` (pendiente/confirmada/rechazada/expirada)
-- [ ] T033 [P] [US2] Migrations for drafts/transferencias per data-model in `backend/alembic/versions/` (Transferencia sin PENDING, draft_id único, amount NUMERIC(18,2))
-- [ ] T034 [US2] Implement draft repository and expiration logic (evaluated on confirm) in `backend/src/wallet_ai/infrastructure/db/draft_repository.py`
-- [ ] T035 [US2] Implement draft application service (create/list/reject/confirm with ownership check, evaluate expiration on confirm, idempotency by draft_id) in `backend/src/wallet_ai/application/transfers/`
-- [ ] T036 [US2] Implement assistant orchestrator in `backend/src/wallet_ai/application/assistant/orchestrator.py` (prompt, tool loop, shared tool registry with MCP, response with citations)
-- [ ] T037 [US2] Extend fake LLM adapter to emit scripted tool calls deterministically in `backend/src/wallet_ai/infrastructure/providers/fake/llm.py`
-- [ ] T038 [US2] Add API routes for drafts and POST /drafts/{id}/confirm (separado) in `backend/src/wallet_ai/interfaces/api/routers/drafts.py` per OpenAPI
-- [ ] T039 [US2] Add MCP tools in `backend/src/wallet_ai/interfaces/mcp/tools/` for get_balance, list_transactions, find_recipient (opaco + enmascarado, desambiguación), draft_transfer (identidad desde sesión). Sin confirm/execute.
-- [ ] T040 [US2] Add SSE endpoint for chat in `backend/src/wallet_ai/interfaces/api/routers/chat.py` (trace_id en header y primer evento SSE; sin confirmación)
-- [ ] T041 [US2] Run and make US2 tests pass
-
-**Checkpoint**: US1 and US2 independently functional
+### Implementation
+- [ ] T033 [P] [US2] Domain transfers + RecipientHandle en `backend/src/wallet_ai/domain/transfers/`
+- [ ] T034 [P] [US2] Migraciones drafts/transferencias (recipient_handle, sin PENDING, draft_id único) en `backend/alembic/versions/`
+- [ ] T035 [US2] DraftRepository + expiración evaluada al confirmar en `backend/src/wallet_ai/infrastructure/db/draft_repository.py`
+- [ ] T036 [US2] RecipientHandleRepository (emisión ligada a solicitante, vencimiento 15m, consumo) en `backend/src/wallet_ai/infrastructure/db/recipient_repository.py`
+- [ ] T037 [US2] Draft service (recibe handle, valida propiedad/expiración/consumo, idempotencia por draft_id) en `backend/src/wallet_ai/application/transfers/`
+- [ ] T038 [US2] Orchestrator en `backend/src/wallet_ai/application/assistant/orchestrator.py` + registry compartido con MCP
+- [ ] T039 [US2] Fake LLM scripted tool calls en `backend/src/wallet_ai/infrastructure/providers/fake/llm.py`
+- [ ] T040 [US2] /recipients GET en `backend/src/wallet_ai/interfaces/api/routers/recipients.py`
+- [ ] T041 [US2] Drafts + /drafts/{id}/confirm (separado) en `backend/src/wallet_ai/interfaces/api/routers/drafts.py`
+- [ ] T042 [US2] MCP tools (get_balance,list_transactions,find_recipient,draft_transfer) en `backend/src/wallet_ai/interfaces/mcp/tools/`
+- [ ] T043 [US2] Chat SSE (X-Trace-Id header + primer evento) en `backend/src/wallet_ai/interfaces/api/routers/chat.py`
+- [ ] T044 [US2] Hacer pasar tests US2
 
 ---
 
-## Phase 5: User Story 3 - RAG con ACL, corpus sintético, segmentación configurable y recuperación híbrida (Priority: P3)
+## Phase 5: US3 - RAG ACL + Corpus + Segmentación (P3)
 
-**Goal**: Corpus sintético de políticas con 3 niveles, ingesta con segmentación configurable (fijo/estructural), embeddings con modelo+versión, filtro ACL antes del ranking, híbrida texto+vector con RRF, re-ranking por puerto.
+### Tests (TDD)
+- [ ] T045 [P] [US3] ACL antes de ranking + citas en `backend/tests/integration/test_rag_acl.py` (debe fallar)
 
-**Independent Test**: Cliente no ve interno; compliance/soporte sí. ACL aplicado antes de ranking. Respuestas con citas. Segmentación configurable produce chunks distintos comparables.
-
-### Tests for User Story 3 (TDD - must fail before implementation) ⚠️
-- [ ] T042 [P] [US3] Integration test for ACL before ranking and citations in `backend/tests/integration/test_rag_acl.py` (debe fallar antes de implementar)
-
-### Implementation for User Story 3
-- [ ] T043 [P] [US3] Create synthetic policy corpus (3 access levels) in `backend/evals/golden/corpus/` or `backend/data/policies/`
-- [ ] T044 [P] [US3] Create document/chunk entities with access_level denormalizado in `backend/src/wallet_ai/domain/documents/`
-- [ ] T045 [P] [US3] Migrations for documents/chunks with embedding_model/version and access_level in `backend/alembic/versions/`
-- [ ] T046 [US3] Implement ingestion with configurable segmentation (fixed vs structural) in `backend/src/wallet_ai/application/rag/ingest.py` storing embedding_model/version
-- [ ] T047 [US3] Implement document/chunk repositories with ACL pre-filter in `backend/src/wallet_ai/infrastructure/db/document_repository.py`
-- [ ] T048 [US3] Implement hybrid retrieval: prefer exact search with ACL filter first; if needed evaluate pgvector iterative_scan as documented alternative in `backend/src/wallet_ai/application/rag/hybrid_retriever.py` (RRF k=60)
-- [ ] T049 [US3] Implement reranker port usage (fake + optional local adapter as extra dep) in `backend/src/wallet_ai/application/rag/reranker.py`
-- [ ] T050 [US3] Implement RAG service with citations and grounding in `backend/src/wallet_ai/application/rag/rag_service.py`
-- [ ] T051 [US3] Run and make US3 tests pass
-
-**Checkpoint**: US3 independently functional
+### Implementation
+- [ ] T046 [P] [US3] Corpus sintético 3 niveles en `backend/evals/golden/corpus/`
+- [ ] T047 [P] [US3] Domain documents/chunks + access_level denormalizado en `backend/src/wallet_ai/domain/documents/`
+- [ ] T048 [P] [US3] Migraciones documents/chunks en `backend/alembic/versions/`
+- [ ] T049 [US3] Ingesta segmentación fijo/estructural + embedding_model/version en `backend/src/wallet_ai/application/rag/ingest.py`
+- [ ] T050 [US3] DocumentRepository con prefilter ACL en `backend/src/wallet_ai/infrastructure/db/document_repository.py`
+- [ ] T051 [US3] Hybrid retrieval: búsqueda exacta con filtro ACL (preferido); iterative_scan documentado en `backend/src/wallet_ai/application/rag/hybrid_retriever.py` (RRF k=60)
+- [ ] T052 [US3] Reranker puerto (fake + opcional local) en `backend/src/wallet_ai/application/rag/reranker.py`
+- [ ] T053 [US3] RAG service con citas en `backend/src/wallet_ai/application/rag/rag_service.py`
+- [ ] T054 [US3] Hacer pasar tests US3
 
 ---
 
-## Phase 6: User Story 4 - Guardrails, PII, prompt injection/exfiltración (Priority: P4)
+## Phase 6: US4 - Guardrails + PII + Adversarial (P4)
 
-**Goal**: Reglas deterministas + verificación opcional, PII enmascarado, suite adversarial sin fugas.
+### Tests (TDD)
+- [ ] T055 [P] [US4] Adversarial (0 fugas PII, 0 docs sin permiso) en `backend/tests/adversarial/test_adversarial.py` (debe fallar)
 
-**Independent Test**: Suite adversarial pasa con 0 fugas PII / 0 documentos sin permiso. PII enmascarado en logs/auditoría/recuperado.
-
-### Tests for User Story 4 (TDD - must fail before implementation) ⚠️
-- [ ] T052 [P] [US4] Adversarial tests (injection/exfiltration/PII) in `backend/tests/adversarial/test_adversarial.py` (debe fallar antes de implementar)
-
-### Implementation for User Story 4
-- [ ] T053 [P] [US4] Implement guardrails rules in `backend/src/wallet_ai/infrastructure/guardrails/rules.py` (injection/exfiltration)
-- [ ] T054 [US4] Integrate guardrails into assistant pipeline with audit events in `backend/src/wallet_ai/application/assistant/guardrails_service.py`
-- [ ] T055 [US4] Ensure PII masking applied to retrieved content, logs, and audit payloads in `backend/src/wallet_ai/infrastructure/pii/masker.py`
-- [ ] T056 [US4] Create/update adversarial suite versionada in `backend/tests/adversarial/`
-- [ ] T057 [US4] Run and make US4 tests pass
-
-**Checkpoint**: US4 independently functional
+### Implementation
+- [ ] T056 [P] [US4] Reglas guardrails en `backend/src/wallet_ai/infrastructure/guardrails/rules.py`
+- [ ] T057 [US4] Integrar guardrails + audit en `backend/src/wallet_ai/application/assistant/guardrails_service.py`
+- [ ] T058 [US4] PII masking sobre recuperado/logs/audit en `backend/src/wallet_ai/infrastructure/pii/masker.py`
+- [ ] T059 [US4] Suite adversarial versionada en `backend/tests/adversarial/`
+- [ ] T060 [US4] Hacer pasar tests US4
 
 ---
 
-## Phase 7: User Story 5 - Auditoría para compliance (Priority: P5)
+## Phase 7: US5 - Auditoría (P5)
 
-**Goal**: Consulta de auditoría solo compliance, trazabilidad completa por trace_id, eventos append-only.
+### Tests (TDD)
+- [ ] T061 [P] [US5] Audit access control + trace reconstruction en `backend/tests/integration/test_audit.py` (debe fallar)
 
-**Independent Test**: Cualquier interacción tiene trace_id; compliance reconstruye cadena completa; otros roles sin acceso.
-
-### Tests for User Story 5 (TDD - must fail before implementation) ⚠️
-- [ ] T058 [P] [US5] Integration test for audit access control and trace reconstruction in `backend/tests/integration/test_audit.py` (debe fallar antes de implementar)
-
-### Implementation for User Story 5
-- [ ] T059 [P] [US5] Add audit query service with role check (solo compliance) in `backend/src/wallet_ai/application/audit/audit_query_service.py`
-- [ ] T060 [US5] Add API endpoint GET /audit with pagination (limit,cursor) and trace_id filter in `backend/src/wallet_ai/interfaces/api/routers/audit.py`
-- [ ] T061 [US5] Ensure all decisions logged with trace_id in tracing integration
-- [ ] T062 [US5] Run and make US5 tests pass
-
-**Checkpoint**: All user stories (US1-US5) independently functional
+### Implementation
+- [ ] T062 [P] [US5] AuditQueryService (solo compliance) en `backend/src/wallet_ai/application/audit/audit_query_service.py`
+- [ ] T063 [US5] GET /audit limit+cursor+trace_id en `backend/src/wallet_ai/interfaces/api/routers/audit.py`
+- [ ] T064 [US5] Logging decisiones con trace_id
+- [ ] T065 [US5] Hacer pasar tests US5
 
 ---
 
-## Phase 8: Comparación de estrategias e informe de evaluación (Priority: P6)
+## Phase 8: Evaluación y Comparación [EVAL] (P6)
 
-**Goal**: Evaluar >=3 estrategias con mismo dataset/criterios; juez propio vía LLMProvider; RAGAS opcional posterior; tabla comparativa en README.
+### Tests (TDD)
+- [ ] T066 [P] [EVAL] Esquema JSON juez + report schema en `backend/tests/contract/test_evals.py` (debe fallar)
 
-**Independent Test**: Comparación genera informe en backend/evals/reports/ con config/proveedor/modelo/métricas comparables.
-
-### Tests for Evaluation (TDD - must fail before implementation) ⚠️
-- [ ] T063 [P] [EVAL] Contract test for evaluation report schema in `backend/tests/contract/test_evals.py` (debe fallar antes de implementar)
-
-### Implementation for Evaluation
-- [ ] T064 [P] [EVAL] Create golden dataset structure (30–50 preguntas) in `backend/evals/golden/`
-- [ ] T065 [EVAL] Implement fidelity judge propio vía LLMProvider (prompt/checklist) in `backend/evals/judge/` (sin depender obligatoriamente de RAGAS)
-- [ ] T066 [EVAL] Implement evaluation runners (run_quality, run_strategies) in `backend/evals/` with RAGAS documented as optional extra `eval` dependency
-- [ ] T067 [EVAL] Implement strategy comparison (segmentación fijo/estructural, léxica/vectorial/híbrida, con/sin re-ranking) in `backend/evals/strategies/` computing hit@k, MRR y fidelidad
-- [ ] T068 [EVAL] Write versioned reports to `backend/evals/reports/` with provider/model/config
-- [ ] T069 [EVAL] Generate/update comparison table in `README.md`
-- [ ] T070 [EVAL] Run and make evaluation tests pass
+### Implementation
+- [ ] T067 [P] [EVAL] Dataset dorado 30–50 en `backend/evals/golden/`
+- [ ] T068 [EVAL] Juez propio vía LLMProvider con **esquema JSON estricto**, 1 reintento ante inválido, `judge_status = judge_error` sin puntaje inventado, guardar `judge_model`. Calibración manual ~10 ítems en `backend/evals/judge/`
+- [ ] T069 [EVAL] Runners (run_quality, run_strategies), RAGAS como extra opcional en `backend/evals/`
+- [ ] T070 [EVAL] Comparación estrategias (fijo/estructural, léxica/vectorial/híbrida, con/sin re-ranking) hit@k/MRR/fidelidad en `backend/evals/strategies/`
+- [ ] T071 [EVAL] Informes versionados en `backend/evals/reports/`
+- [ ] T072 [EVAL] Tabla comparativa en `README.md`
+- [ ] T073 [EVAL] Hacer pasar tests evaluación
 
 ---
 
 ## Phase 9: Polish & Cross-Cutting Concerns
 
-**Purpose**: Docs, ADRs, LICENSE, demo sin llaves, hardening
+- [ ] T074 [P] README completo (diagrama arquitectura, ADR cortos, LICENSE, demo sin llaves, tabla comparativa eval) en `README.md`
+- [ ] T075 [P] Validar contratos (OpenAPI/MCP)
+- [ ] T076 [P] Quickstart desde backend/ en `specs/001-wallet-financial-assistant/quickstart.md` (validado)
+- [ ] T077 [P] Frontend mínimo en `frontend/`, notas docker/Cloud Run/Cloud SQL, hardening + architecture tests pass
 
-- [ ] T071 [P] Update README with architecture diagram, ADR cortos, LICENSE, demo sin llaves (using fake provider) and eval comparison table in `README.md`
-- [ ] T072 [P] Ensure contracts valid and aligned (OpenAPI/MCP) in `specs/001-wallet-financial-assistant/contracts/`
-- [ ] T073 [P] Run quickstart validation steps from `specs/001-wallet-financial-assistant/quickstart.md` (from backend/)
-- [ ] T074 [P] Add minimal frontend scaffold (optional) in `frontend/`
-- [ ] T075 [P] Add docker-compose full stack notes and optional Cloud Run/Cloud SQL guidance in `docs/` or `README.md`
-- [ ] T076 [P] Security/architecture hardening: verify MCP no execute/confirm, confirmation endpoint isolated, ACL before ranking, PII masking, audit append-only + TRUNCATE blocks
-- [ ] T077 [P] Final architecture tests pass in `backend/tests/architecture/`
-
----
-
-## Dependencies & Execution Order
-
-### Phase Dependencies
-- **Setup (Phase 1)**: No dependencies
-- **Foundational (Phase 2)**: Depends on Setup - BLOCKS all user stories
-- **User Stories (Phase 3-7)**: Depend on Foundational; US1 is MVP base, US2 depends on US1
-- **Evaluation (Phase 8)**: Depends on RAG/assistant infrastructure
-- **Polish (Phase 9)**: Depends on desired stories complete
-
-### User Story Dependencies
-- **US1**: After Foundational
-- **US2**: After Foundational + US1
-- **US3**: After Foundational
-- **US4**: After US2/US3
-- **US5**: After US2/US3/US4
-
-### Parallel Opportunities
-- Setup/Foundation [P] tasks
-- Tests marked [P] must be written first (TDD)
-- Different user stories can proceed in parallel where independent
-
----
+## Dependencies
+- Foundational (2) bloquea todo
+- US2 depende US1
+- US4 depende US2/US3; US5 depende US2/US3/US4
+- Eval depende US3/assistant
+- Polish tras historias/éval
 
 ## Implementation Strategy
-
-### MVP First (US1 Only)
-1. Phase 1 Setup (+ CI)
-2. Phase 2 Foundational (+ seeds + architecture tests)
-3. Phase 3 US1 (TDD)
-4. Validate ledger invariants
-
-### Incremental Delivery
-1. Foundation + US1 → MVP
-2. Add US2 → orchestrator + drafts + separated confirmation
-3. Add US3 → synthetic corpus + segmentation + ACL + hybrid
-4. Add US4 → guardrails + adversarial
-5. Add US5 → audit
-6. Add evaluation comparison + README table
-
----
-
-## Notes
-- [P] = different files, no dependencies
-- [Story]/[EVAL] labels for traceability
-- Tests fail before implementation (TDD)
-- MCP in `backend/src/wallet_ai/interfaces/mcp/` (input adapter), no execute/confirm tools
-- Confirmation via separate endpoint `POST /drafts/{id}/confirm`, expiration evaluated on confirm, idempotency by draft_id
-- Ledger immutability via triggers + permissions + TRUNCATE blocks; sums enforced by deferred trigger
-- Amounts NUMERIC(18,2), API uses decimal strings
-- Pagination with limit+cursor
-- trace_id in header + first SSE event
-- Fidelity judge propio vía LLMProvider; RAGAS optional extra
-- ACL filter before ranking, Chunk.access_level denormalizado
-- find_recipient returns opaque id + masked name, identity from session
-- Architecture tests enforce hexagonal boundaries and confirmation isolation
+MVP: 1→2→3 (US1). Incremental + TDD (tests fallan antes). MCP en interfaces/mcp, confirmación separada, handles opacos, juez estricto.
