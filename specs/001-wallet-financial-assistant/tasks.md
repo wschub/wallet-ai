@@ -39,7 +39,7 @@
 
 **⚠️ CRITICAL**: Blocks all user stories
 
-- [ ] T008 Define domain ports in `backend/src/wallet_ai/domain/ports/`
+- [x] T008 Define domain ports in `backend/src/wallet_ai/domain/ports/`
 - [ ] T009 [P] Fake adapters (llm with scripted tool calls, embeddings, reranker) in `backend/src/wallet_ai/infrastructure/providers/fake/`
 - [ ] T010 [P] trace_id + contextvars + structured logging in `backend/src/wallet_ai/infrastructure/tracing/`
 - [ ] T011 [P] PIIService (patterns + Luhn) in `backend/src/wallet_ai/infrastructure/pii/`
@@ -50,7 +50,7 @@
 - [ ] T016 [P] FastAPI skeleton in `backend/src/wallet_ai/interfaces/api/main.py`
 - [ ] T017 [P] MCP skeleton in `backend/src/wallet_ai/interfaces/mcp/server.py`
 - [ ] T018 [P] Seed script `backend/scripts/seed.py` (usuarios + cuentas)
-- [ ] T019 [P] Architecture tests (domain no importa infrastructure; confirmación aislada) in `backend/tests/architecture/`
+- [ ] T019 [P] Architecture tests (domain no importa infrastructure; confirmación aislada) in `backend/tests/architecture/` (capas hechas; falta aislamiento de confirmación en US2)
 
 **Checkpoint**: Foundation ready
 
