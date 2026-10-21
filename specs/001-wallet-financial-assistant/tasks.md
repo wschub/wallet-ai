@@ -25,13 +25,13 @@
 
 ## Phase 1: Setup (Shared Infrastructure)
 
-- [ ] T001 Create backend structure per plan in `backend/`
-- [ ] T002 Initialize Python 3.12+ with uv/deps (fastapi, uvicorn, asyncpg, httpx, pydantic v2, alembic, pgvector, pyjwt, sse-starlette, mcp) in `backend/pyproject.toml`
-- [ ] T003 [P] Configure ruff in `backend/pyproject.toml` and `backend/ruff.toml`
-- [ ] T004 [P] Configure pytest + pytest-asyncio in `backend/pyproject.toml`
-- [ ] T005 [P] Add docker-compose (Postgres+pgvector) in `backend/docker-compose.yml`
-- [ ] T006 Initialize Alembic in `backend/alembic/` and `backend/alembic.ini`
-- [ ] T007 [P] GitHub Actions CI with only fake provider in `.github/workflows/ci.yml`
+- [x] T001 Create backend structure per plan in `backend/`
+- [x] T002 Initialize Python 3.12+ with uv/deps (fastapi, uvicorn, asyncpg, httpx, pydantic v2, alembic, pgvector, pyjwt, sse-starlette, mcp) in `backend/pyproject.toml`
+- [x] T003 [P] Configure ruff in `backend/pyproject.toml` and `backend/ruff.toml`
+- [x] T004 [P] Configure pytest + pytest-asyncio in `backend/pyproject.toml`
+- [x] T005 [P] Add docker-compose (Postgres+pgvector) in `backend/docker-compose.yml`
+- [x] T006 Initialize Alembic in `backend/alembic/` and `backend/alembic.ini`
+- [x] T007 [P] GitHub Actions CI with only fake provider in `.github/workflows/ci.yml`
 
 ---
 
