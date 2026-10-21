@@ -14,3 +14,4 @@ __pycache__/
 .qodo/
 .opencode/node_modules/
 .DS_Store
+commands.txt
