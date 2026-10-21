@@ -40,13 +40,13 @@
 **⚠️ CRITICAL**: Blocks all user stories
 
 - [x] T008 Define domain ports in `backend/src/wallet_ai/domain/ports/`
-- [ ] T009 [P] Fake adapters (llm with scripted tool calls, embeddings, reranker) in `backend/src/wallet_ai/infrastructure/providers/fake/`
-- [ ] T010 [P] trace_id + contextvars + structured logging in `backend/src/wallet_ai/infrastructure/tracing/`
-- [ ] T011 [P] PIIService (patterns + Luhn) in `backend/src/wallet_ai/infrastructure/pii/`
+- [x] T009 [P] Fake adapters (llm with scripted tool calls, embeddings, reranker) in `backend/src/wallet_ai/infrastructure/providers/fake/`
+- [x] T010 [P] trace_id + contextvars + structured logging in `backend/src/wallet_ai/infrastructure/tracing/`
+- [x] T011 [P] PIIService (patterns + Luhn) in `backend/src/wallet_ai/infrastructure/pii/`
 - [ ] T012 Create migrations for users, accounts, RecipientHandle, interactions, audit_events (append-only) in `backend/alembic/versions/` (triggers BEFORE UPDATE/DELETE, TRUNCATE blocked on audit_events; prepare for ledger)
 - [ ] T013 Implement append-only AuditRepository in `backend/src/wallet_ai/infrastructure/db/audit_repository.py`
 - [ ] T014 [P] Auth JWT + roles (cliente/soporte/compliance) in `backend/src/wallet_ai/interfaces/api/deps/auth.py` and `deps/roles.py`
-- [ ] T015 [P] Config/env in `backend/src/wallet_ai/infrastructure/config/`
+- [x] T015 [P] Config/env in `backend/src/wallet_ai/infrastructure/config/`
 - [ ] T016 [P] FastAPI skeleton in `backend/src/wallet_ai/interfaces/api/main.py`
 - [ ] T017 [P] MCP skeleton in `backend/src/wallet_ai/interfaces/mcp/server.py`
 - [ ] T018 [P] Seed script `backend/scripts/seed.py` (usuarios + cuentas)
