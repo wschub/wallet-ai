@@ -1,0 +1,6 @@
+from typing import Protocol
+
+
+class TraceContext(Protocol):
+    def get_trace_id(self) -> str: ...
+    def set_trace_id(self, trace_id: str) -> None: ...
