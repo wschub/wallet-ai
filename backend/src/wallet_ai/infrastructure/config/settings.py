@@ -24,6 +24,15 @@ class Settings(BaseSettings):
     OPENAI_API_KEY: str | None = None
     AZURE_OPENAI_API_KEY: str | None = None
 
+    @property
+    def asyncpg_dsn(self) -> str:
+        url = self.DATABASE_URL
+        if url.startswith("postgresql+asyncpg://"):
+            return url.replace("postgresql+asyncpg://", "postgresql://", 1)
+        if url.startswith("postgres://"):
+            return url.replace("postgres://", "postgresql://", 1)
+        return url
+
     def model_post_init(self, __context: Any) -> None:
         # non-fake providers require key
         has_key = bool(self.OPENAI_API_KEY or self.AZURE_OPENAI_API_KEY)
