@@ -40,17 +40,19 @@
 **⚠️ CRITICAL**: Blocks all user stories
 
 - [x] T008 Define domain ports in `backend/src/wallet_ai/domain/ports/`
-- [ ] T009 [P] Fake adapters (llm with scripted tool calls, embeddings, reranker) in `backend/src/wallet_ai/infrastructure/providers/fake/`
-- [ ] T010 [P] trace_id + contextvars + structured logging in `backend/src/wallet_ai/infrastructure/tracing/`
-- [ ] T011 [P] PIIService (patterns + Luhn) in `backend/src/wallet_ai/infrastructure/pii/`
-- [ ] T012 Create migrations for users, accounts, RecipientHandle, interactions, audit_events (append-only) in `backend/alembic/versions/` (triggers BEFORE UPDATE/DELETE, TRUNCATE blocked on audit_events; prepare for ledger)
-- [ ] T013 Implement append-only AuditRepository in `backend/src/wallet_ai/infrastructure/db/audit_repository.py`
-- [ ] T014 [P] Auth JWT + roles (cliente/soporte/compliance) in `backend/src/wallet_ai/interfaces/api/deps/auth.py` and `deps/roles.py`
-- [ ] T015 [P] Config/env in `backend/src/wallet_ai/infrastructure/config/`
-- [ ] T016 [P] FastAPI skeleton in `backend/src/wallet_ai/interfaces/api/main.py`
-- [ ] T017 [P] MCP skeleton in `backend/src/wallet_ai/interfaces/mcp/server.py`
-- [ ] T018 [P] Seed script `backend/scripts/seed.py` (usuarios + cuentas)
+- [x] T009 [P] Fake adapters (llm with scripted tool calls, embeddings, reranker) in `backend/src/wallet_ai/infrastructure/providers/fake/`
+- [x] T010 [P] trace_id + contextvars + structured logging in `backend/src/wallet_ai/infrastructure/tracing/`
+- [x] T011 [P] PIIService (patterns + Luhn) in `backend/src/wallet_ai/infrastructure/pii/`
+- [x] T012 Create migrations for users, accounts, RecipientHandle, interactions, audit_events (append-only) in `backend/alembic/versions/` (triggers BEFORE UPDATE/DELETE, TRUNCATE blocked on audit_events; prepare for ledger). [ADDENDUM US1] Agregar triggers BEFORE TRUNCATE a nivel de sentencia para `ledger_entries` y `ledger_transactions` al crearlos en T023/T024.
+- [x] T013 Implement append-only AuditRepository in `backend/src/wallet_ai/infrastructure/db/audit_repository.py`
+
+- [x] T014 [P] Auth JWT + roles (cliente/soporte/compliance) en `backend/src/wallet_ai/interfaces/api/deps/auth.py` y `deps/roles.py` (cubierto por tests)
+- [x] T015 [P] Config/env in `backend/src/wallet_ai/infrastructure/config/`
+- [x] T016 [P] FastAPI skeleton en `backend/src/wallet_ai/interfaces/api/main.py` con trace_id/middleware y tests de auth/API
+- [x] T017 [P] MCP skeleton en `backend/src/wallet_ai/interfaces/mcp/server.py` sin herramientas confirm/execute (cubierto por tests)
+- [x] T018 [P] Seed script `backend/scripts/seed.py` (usuarios + cuentas)
 - [ ] T019 [P] Architecture tests (domain no importa infrastructure; confirmación aislada) in `backend/tests/architecture/` (capas hechas; falta aislamiento de confirmación en US2)
+
 
 **Checkpoint**: Foundation ready
 
