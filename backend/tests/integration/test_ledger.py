@@ -89,6 +89,7 @@ async def _create_balanced(db_conn: asyncpg.Connection) -> dict:
     from_account = await _new_account(db_conn, from_user)
     to_user = await _new_user(db_conn)
     to_account = await _new_account(db_conn, to_user)
+    await _fund(db_conn, from_account, AMOUNT)
     txn_id = uuid.uuid4()
     key = f"idem-{uuid.uuid4().hex}"
 
@@ -110,9 +111,51 @@ async def _create_balanced(db_conn: asyncpg.Connection) -> dict:
     }
 
 
-async def _assert_transaction_absent(db_conn: asyncpg.Connection, txn_id: uuid.UUID) -> None:
-    row = await db_conn.fetchrow("SELECT id FROM ledger_transactions WHERE id = $1", txn_id)
-    assert row is None
+async def _ensure_system_account(conn: asyncpg.Connection) -> uuid.UUID:
+    row = await conn.fetchrow("SELECT id FROM accounts WHERE is_system = true LIMIT 1")
+    if row:
+        return row["id"]
+    suid = uuid.uuid4()
+    await conn.execute(
+        "INSERT INTO users (id, email, role) VALUES ($1, $2, 'compliance') ON CONFLICT DO NOTHING",
+        suid,
+        f"sys-{uuid.uuid4().hex}@test.com",
+    )
+    sid = uuid.uuid4()
+    await conn.execute(
+        "INSERT INTO accounts (id, user_id, currency, is_system) VALUES ($1, $2, 'COP', true)",
+        sid,
+        suid,
+    )
+    return sid
+
+
+async def _fund(conn: asyncpg.Connection, account_id: uuid.UUID, amount: Decimal) -> None:
+    sys = await _ensure_system_account(conn)
+    async with conn.transaction():
+        txn_id = await conn.fetchval(
+            "INSERT INTO ledger_transactions (id, from_user_id, from_account_id, idempotency_key, kind, request_hash) "
+            "VALUES (gen_random_uuid(), $1, $2, $3, 'funding', $4) RETURNING id",
+            None,
+            None,
+            f"fund-{account_id}-{uuid.uuid4().hex}",
+            "fund",
+        )
+        await conn.execute(
+            "INSERT INTO ledger_entries (id, transaction_id, account_id, entry_type, amount) "
+            "VALUES (gen_random_uuid(), $1, $2, 'DEBIT', $3)",
+            txn_id,
+            sys,
+            amount,
+        )
+        await conn.execute(
+            "INSERT INTO ledger_entries (id, transaction_id, account_id, entry_type, amount) "
+            "VALUES (gen_random_uuid(), $1, $2, 'CREDIT', $3)",
+            txn_id,
+            account_id,
+            amount,
+        )
+        await conn.execute("SET CONSTRAINTS ALL IMMEDIATE")
 
 
 # --------------------------------------------------------------------------
@@ -163,7 +206,8 @@ async def test_unbalanced_transaction_is_rejected(db_conn):
             await db_conn.execute("SET CONSTRAINTS ALL IMMEDIATE")
 
     assert "unbalanced" in str(exc.value).lower()
-    await _assert_transaction_absent(db_conn, txn_id)
+    row = await db_conn.fetchrow("SELECT id FROM ledger_transactions WHERE id = $1", txn_id)
+    assert row is None
 
 
 @pytest.mark.integration
@@ -180,7 +224,8 @@ async def test_transaction_without_debit_or_credit_is_rejected(db_conn):
             await db_conn.execute("SET CONSTRAINTS ALL IMMEDIATE")
 
     assert "unbalanced" in str(exc.value).lower()
-    await _assert_transaction_absent(db_conn, txn_id)
+    row = await db_conn.fetchrow("SELECT id FROM ledger_transactions WHERE id = $1", txn_id)
+    assert row is None
 
 
 # --------------------------------------------------------------------------
@@ -203,7 +248,8 @@ async def test_non_positive_amount_is_rejected(db_conn, bad_amount):
             await _insert_entry(db_conn, txn_id, to_account, "CREDIT", AMOUNT)
             await db_conn.execute("SET CONSTRAINTS ALL IMMEDIATE")
 
-    await _assert_transaction_absent(db_conn, txn_id)
+    row = await db_conn.fetchrow("SELECT id FROM ledger_transactions WHERE id = $1", txn_id)
+    assert row is None
     entries = await db_conn.fetch("SELECT id FROM ledger_entries WHERE transaction_id = $1", txn_id)
     assert entries == []
 
@@ -218,6 +264,8 @@ async def test_duplicate_idempotency_key_for_same_user_and_account_is_rejected(d
     from_account = await _new_account(db_conn, from_user)
     to_user = await _new_user(db_conn)
     to_account = await _new_account(db_conn, to_user)
+    await _fund(db_conn, from_account, AMOUNT)
+    await _fund(db_conn, to_account, AMOUNT)
     key = f"idem-{uuid.uuid4().hex}"
 
     async with db_conn.transaction():
@@ -333,6 +381,7 @@ async def test_truncate_is_rejected_and_rows_survive(db_conn, statement):
 @pytest.mark.asyncio
 async def test_wallet_app_can_insert_and_select_ledger_but_not_modify_it(db_conn):
     ctx = await _create_balanced(db_conn)
+    await _fund(db_conn, ctx["from_account"], AMOUNT)
 
     await db_conn.execute("SET ROLE wallet_app")
     try:
