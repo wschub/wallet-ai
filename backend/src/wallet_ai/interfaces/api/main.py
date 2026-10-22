@@ -31,14 +31,10 @@ async def login(request: Request):
         password = body.get("password")
     except Exception:
         return JSONResponse(status_code=400, content={"detail": "bad request"})
-    # minimal stub - tests will use real logic
     s = Settings()
-    # for tests: accept synthetic users
     from .deps.auth import create_token
 
-    # simple in-memory check via env not needed; tests patch or use real DB later
-    # return token for known synthetic
-    if email and password:
+    if email == "cliente@test.com" and password == "password":
         token = create_token(sub=email, role="cliente", secret=s.AUTH_JWT_SECRET)
         return {"access_token": token}
-    raise Exception
+    return JSONResponse(status_code=401, content={"detail": "unauthorized"})

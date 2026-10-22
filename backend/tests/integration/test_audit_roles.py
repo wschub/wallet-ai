@@ -1,5 +1,6 @@
 import uuid
 
+import asyncpg
 import pytest
 
 
@@ -26,20 +27,22 @@ async def test_wallet_app_role_permissions(db_conn):
         )
         rows = await db_conn.fetch("SELECT id FROM audit_events WHERE trace_id = $1", tid)
         assert len(rows) >= 1
-        with pytest.raises(Exception):
+        with pytest.raises(asyncpg.exceptions.InsufficientPrivilegeError):
             await db_conn.execute("UPDATE audit_events SET reason='x' WHERE trace_id = $1", tid)
-        try:
+        rows_after = await db_conn.fetch("SELECT id FROM audit_events WHERE trace_id = $1", tid)
+        assert len(rows_after) >= 1
+        with pytest.raises(asyncpg.exceptions.InsufficientPrivilegeError):
             await db_conn.execute("DELETE FROM audit_events WHERE trace_id = $1", tid)
-            raise AssertionError("should fail")
-        except AssertionError:
-            raise
-        except Exception:
-            pass
-
-        with pytest.raises(Exception):
+        rows_after = await db_conn.fetch("SELECT id FROM audit_events WHERE trace_id = $1", tid)
+        assert len(rows_after) >= 1
+        with pytest.raises(asyncpg.exceptions.InsufficientPrivilegeError):
             await db_conn.execute("TRUNCATE TABLE audit_events")
-        with pytest.raises(Exception):
+        rows_after = await db_conn.fetch("SELECT id FROM audit_events WHERE trace_id = $1", tid)
+        assert len(rows_after) >= 1
+        with pytest.raises(asyncpg.exceptions.InsufficientPrivilegeError):
             await db_conn.execute("ALTER TABLE audit_events DISABLE TRIGGER ALL")
+        rows_after = await db_conn.fetch("SELECT id FROM audit_events WHERE trace_id = $1", tid)
+        assert len(rows_after) >= 1
     finally:
         await db_conn.execute("RESET ROLE")
 
@@ -63,20 +66,27 @@ async def test_triggers_reject_by_default_role(db_conn):
         "llm_call",
         "{}",
     )
-    with pytest.raises(Exception):
+    with pytest.raises(Exception, match="append-only"):
         await db_conn.execute("UPDATE audit_events SET reason='x' WHERE trace_id = $1", tid)
-    try:
+    rows_after = await db_conn.fetch("SELECT id FROM audit_events WHERE trace_id = $1", tid)
+    assert len(rows_after) >= 1
+    with pytest.raises(Exception, match="append-only"):
         await db_conn.execute("DELETE FROM audit_events WHERE trace_id = $1", tid)
-        raise AssertionError("should fail")
-    except AssertionError:
-        raise
-    except Exception:
-        pass
-    try:
+    rows_after = await db_conn.fetch("SELECT id FROM audit_events WHERE trace_id = $1", tid)
+    assert len(rows_after) >= 1
+    with pytest.raises(Exception, match="append-only"):
         await db_conn.execute("TRUNCATE TABLE audit_events")
-        # If it doesn't raise due to trigger, still acceptable if permission denied
-    except Exception:
-        pass
+    rows_after = await db_conn.fetch("SELECT id FROM audit_events WHERE trace_id = $1", tid)
+    assert len(rows_after) >= 1
 
 
-
+@pytest.mark.integration
+@pytest.mark.asyncio
+async def test_truncate_users_cascade_is_blocked(db_conn):
+    tr = db_conn.transaction()
+    await tr.start()
+    try:
+        with pytest.raises(Exception, match="append-only"):
+            await db_conn.execute("TRUNCATE users CASCADE")
+    finally:
+        await tr.rollback()
