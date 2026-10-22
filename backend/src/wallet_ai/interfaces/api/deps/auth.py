@@ -1,0 +1,81 @@
+from __future__ import annotations
+
+import hashlib
+import hmac
+import json
+import time
+from typing import Any
+
+from fastapi import Depends, Header, HTTPException
+from fastapi.security import HTTPAuthorizationCredentials, HTTPBearer
+
+from wallet_ai.infrastructure.config.settings import Settings
+
+bearer = HTTPBearer(auto_error=False)
+
+
+def hash_password(password: str, salt: bytes | None = None) -> str:
+    salt = salt or hashlib.sha256(password.encode()).digest()[:16]
+    key = hashlib.scrypt(password.encode(), salt=salt, n=16384, r=8, p=1)
+    return salt.hex() + ":" + key.hex()
+
+
+def verify_password(password: str, stored: str) -> bool:
+    try:
+        salt_hex, key_hex = stored.split(":")
+        salt = bytes.fromhex(salt_hex)
+        key = hashlib.scrypt(password.encode(), salt=salt, n=16384, r=8, p=1)
+        return hmac.compare_digest(key.hex(), key_hex)
+    except Exception:
+        return False
+
+
+def create_token(sub: str, role: str, secret: str, exp_seconds: int = 3600) -> str:
+    header = {"alg": "HS256", "typ": "JWT"}
+    payload = {"sub": sub, "role": role, "exp": int(time.time()) + exp_seconds}
+    h = json.dumps(header).encode()
+    p = json.dumps(payload).encode()
+    import base64
+
+    def b64url(x: bytes) -> str:
+        return base64.urlsafe_b64encode(x).rstrip(b"=").decode()
+
+    msg = b64url(h) + "." + b64url(p)
+    sig = hmac.new(secret.encode(), msg.encode(), hashlib.sha256).digest()
+    return msg + "." + b64url(sig)
+
+
+def decode_token(token: str, secret: str) -> dict[str, Any]:
+    try:
+        import base64
+
+        def b64url(x: str) -> bytes:
+            pad = "=" * (-len(x) % 4)
+            return base64.urlsafe_b64decode(x + pad)
+
+        parts = token.split(".")
+        if len(parts) != 3:
+            raise ValueError("bad token")
+        payload = json.loads(b64url(parts[1]))
+        if payload.get("exp", 0) < int(time.time()):
+            raise ValueError("expired")
+        msg = parts[0] + "." + parts[1]
+        sig = hmac.new(secret.encode(), msg.encode(), hashlib.sha256).digest()
+        import base64 as b
+
+        if b.urlsafe_b64encode(sig).rstrip(b"=").decode() != parts[2]:
+            raise ValueError("bad sig")
+        return payload
+    except Exception as e:
+        raise HTTPException(status_code=401, detail="invalid token") from e
+
+
+async def get_current_user(
+    creds: HTTPAuthorizationCredentials | None = Depends(bearer),
+    x_trace_id: str | None = Header(default=None),
+) -> dict[str, Any]:
+    if not creds:
+        raise HTTPException(status_code=401, detail="missing token")
+    s = Settings()
+    payload = decode_token(creds.credentials, s.AUTH_JWT_SECRET)
+    return {"sub": payload.get("sub"), "role": payload.get("role"), "trace_id": x_trace_id}
