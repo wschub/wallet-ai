@@ -68,9 +68,9 @@
 - [ ] T022 [P] [US1] Domain ledger entities in `backend/src/wallet_ai/domain/ledger/`
 - [x] T023 [P] [US1] Migrations ledger_transactions/ledger_entries (NUMERIC(18,2)) in `backend/alembic/versions/` — `20261022_0003_ledger.py` (+ `accounts.is_system` para la cuenta de sistema "fondeo")
 - [x] T024 [US1] Immutability: triggers UPDATE/DELETE/TRUNCATE blocks + deferred sum(DEBIT)=sum(CREDIT) in `backend/alembic/versions/` — trigger diferido `DEFERRABLE INITIALLY DEFERRED` por transacción, con downgrade funcional
-- [ ] T025 [US1] LedgerRepository (locking orden consistente, idempotencia) in `backend/src/wallet_ai/infrastructure/db/ledger_repository.py`
-- [ ] T026 [US1] Ledger service in `backend/src/wallet_ai/application/ledger/`
-- [ ] T027 [US1] Accounts endpoints + pagination in `backend/src/wallet_ai/interfaces/api/routers/accounts.py`
+- [x] T025 [US1] LedgerRepository (locking orden consistente, idempotencia) en `backend/src/wallet_ai/infrastructure/db/ledger_repository.py` (SELECT ... FOR UPDATE ordenado por id, transacción única, ON CONFLICT DO NOTHING + lectura existente, request_hash, Decimal, validaciones)
+- [x] T026 [US1] Ledger service en `backend/src/wallet_ai/application/ledger/` (sin endpoints HTTP que muevan dinero; solo usado por lógica)
+- [x] T027 [US1] Accounts endpoints + pagination en `backend/src/wallet_ai/interfaces/api/routers/accounts.py` — GET /accounts/me (saldo string decimal) y GET /accounts/me/transactions (limit/cursor, orden estable por created_at,id)
 - [ ] T028 [US1] Hacer pasar tests US1
 
 ---
