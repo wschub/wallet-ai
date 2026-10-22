@@ -21,8 +21,14 @@ def hash_password(password: str, salt: bytes | None = None) -> str:
 
 
 def verify_password(password: str, stored: str) -> bool:
+    if not stored or stored in ("INVALID-SYSTEM",):
+        return False
     try:
-        salt_hex, key_hex = stored.split(":")
+        if ":" not in stored:
+            return False
+        salt_hex, key_hex = stored.split(":", 1)
+        if len(salt_hex) < 8 or len(key_hex) < 8:
+            return False
         salt = bytes.fromhex(salt_hex)
         key = hashlib.scrypt(password.encode(), salt=salt, n=16384, r=8, p=1)
         return hmac.compare_digest(key.hex(), key_hex)

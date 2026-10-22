@@ -43,7 +43,7 @@
 - [x] T009 [P] Fake adapters (llm with scripted tool calls, embeddings, reranker) in `backend/src/wallet_ai/infrastructure/providers/fake/`
 - [x] T010 [P] trace_id + contextvars + structured logging in `backend/src/wallet_ai/infrastructure/tracing/`
 - [x] T011 [P] PIIService (patterns + Luhn) in `backend/src/wallet_ai/infrastructure/pii/`
-- [x] T012 Create migrations for users, accounts, RecipientHandle, interactions, audit_events (append-only) in `backend/alembic/versions/` (triggers BEFORE UPDATE/DELETE, TRUNCATE blocked on audit_events; prepare for ledger). [ADDENDUM US1] Agregar triggers BEFORE TRUNCATE a nivel de sentencia para `ledger_entries` y `ledger_transactions` al crearlos en T023/T024.
+- [x] T012 Create migrations for users, accounts, RecipientHandle, interactions, audit_events (append-only) in `backend/alembic/versions/` (triggers BEFORE UPDATE/DELETE, TRUNCATE blocked on audit_events; prepare for ledger). [ADDENDUM US1] Agregar triggers BEFORE TRUNCATE a nivel de sentencia para `ledger_entries` y `ledger_transactions` al crearlos en T023/T024. (Hecho en `20261022_0003_ledger.py`: BEFORE TRUNCATE por sentencia en ambas tablas.)
 - [x] T013 Implement append-only AuditRepository in `backend/src/wallet_ai/infrastructure/db/audit_repository.py`
 
 - [x] T014 [P] Auth JWT + roles (cliente/soporte/compliance) en `backend/src/wallet_ai/interfaces/api/deps/auth.py` y `deps/roles.py` (cubierto por tests)
@@ -61,16 +61,16 @@
 ## Phase 3: User Story 1 - Ledger (P1) 🎯 MVP
 
 ### Tests (TDD - deben fallar)
-- [ ] T020 [P] [US1] Ledger invariants/idempotency tests in `backend/tests/integration/test_ledger.py` (debe fallar antes de implementar)
+- [x] T020 [P] [US1] Ledger invariants/idempotency tests in `backend/tests/integration/test_ledger.py` (debe fallar antes de implementar) — 17 tests: balance, desbalance, amount<=0, idempotency_key, UPDATE/DELETE/TRUNCATE "append-only" (incl. TRUNCATE accounts/users CASCADE con rollback) y `SET ROLE wallet_app` con `InsufficientPrivilegeError`
 - [ ] T021 [P] [US1] Balance/concurrency tests in `backend/tests/unit/test_ledger.py` (debe fallar antes de implementar)
 
 ### Implementation
 - [ ] T022 [P] [US1] Domain ledger entities in `backend/src/wallet_ai/domain/ledger/`
-- [ ] T023 [P] [US1] Migrations ledger_transactions/ledger_entries (NUMERIC(18,2)) in `backend/alembic/versions/`
-- [ ] T024 [US1] Immutability: triggers UPDATE/DELETE/TRUNCATE blocks + deferred sum(DEBIT)=sum(CREDIT) in `backend/alembic/versions/`
-- [ ] T025 [US1] LedgerRepository (locking orden consistente, idempotencia) in `backend/src/wallet_ai/infrastructure/db/ledger_repository.py`
-- [ ] T026 [US1] Ledger service in `backend/src/wallet_ai/application/ledger/`
-- [ ] T027 [US1] Accounts endpoints + pagination in `backend/src/wallet_ai/interfaces/api/routers/accounts.py`
+- [x] T023 [P] [US1] Migrations ledger_transactions/ledger_entries (NUMERIC(18,2)) in `backend/alembic/versions/` — `20261022_0003_ledger.py` (+ `accounts.is_system` para la cuenta de sistema "fondeo")
+- [x] T024 [US1] Immutability: triggers UPDATE/DELETE/TRUNCATE blocks + deferred sum(DEBIT)=sum(CREDIT) in `backend/alembic/versions/` — trigger diferido `DEFERRABLE INITIALLY DEFERRED` por transacción, con downgrade funcional
+- [x] T025 [US1] LedgerRepository (locking orden consistente, idempotencia) en `backend/src/wallet_ai/infrastructure/db/ledger_repository.py` (SELECT ... FOR UPDATE ordenado por id, transacción única, ON CONFLICT DO NOTHING + lectura existente, request_hash, Decimal, validaciones)
+- [x] T026 [US1] Ledger service en `backend/src/wallet_ai/application/ledger/` (sin endpoints HTTP que muevan dinero; solo usado por lógica)
+- [x] T027 [US1] Accounts endpoints + pagination en `backend/src/wallet_ai/interfaces/api/routers/accounts.py` — GET /accounts/me (saldo string decimal) y GET /accounts/me/transactions (limit/cursor, orden estable por created_at,id)
 - [ ] T028 [US1] Hacer pasar tests US1
 
 ---
