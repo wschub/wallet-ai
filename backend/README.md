@@ -19,10 +19,16 @@ uv run alembic upgrade head
 uv run python scripts/seed.py
 ```
 
+Se usan dos bases para evitar mezclar datos:
+- `wallet_ai_test`: para tests de integración (CI y local). Se recrea/migra con `alembic upgrade head` antes de `pytest`.
+- `wallet_ai_dev`: para la demostración local. Configura `DATABASE_URL` apuntando a `wallet_ai_dev` y ejecuta `APP_ENV=dev uv run python -m scripts.seed` (solo permitido en `dev`). 
+
 ## Database roles
 
 `DATABASE_URL` must point to the **owner** role: it is used by migrations, the seed and the integration tests. 
 `wallet_app` is a NOLOGIN group role with least privilege (INSERT/SELECT on `audit_events`). Running the API with a restricted login role (`CREATE ROLE ... LOGIN IN ROLE wallet_app`) requires a separate runtime URL, which is planned and not implemented yet.
+
+**Seed:** `scripts/seed.py` only runs when `APP_ENV=dev`. Demo passwords are defined in a constant marked **ONLY FOR DEMONSTRATION - DO NOT USE IN PRODUCTION** (`DEMO_PASSWORD`) and must never be used outside local/dev environments.
 
 ## Security model
 
