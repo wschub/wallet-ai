@@ -51,7 +51,7 @@
 - [x] T016 [P] FastAPI skeleton en `backend/src/wallet_ai/interfaces/api/main.py` con trace_id/middleware y tests de auth/API
 - [x] T017 [P] MCP skeleton en `backend/src/wallet_ai/interfaces/mcp/server.py` sin herramientas confirm/execute (cubierto por tests)
 - [x] T018 [P] Seed script `backend/scripts/seed.py` (usuarios + cuentas)
-- [ ] T019 [P] Architecture tests (domain no importa infrastructure; confirmación aislada) in `backend/tests/architecture/` (capas hechas; falta aislamiento de confirmación en US2)
+- [x] T019 [P] Architecture tests (domain no importa infrastructure; confirmación aislada) in `backend/tests/architecture/` — capas + contrato import-linter "Confirmation isolation" (asistente/MCP/providers/guardrails no pueden importar `confirm_draft`, `application.ledger` ni `ledger_repository`) y test `ast` en `tests/architecture/test_confirmation_isolation.py` que exige que solo `interfaces/api/routers/drafts.py` importe `confirm_draft`
 
 
 **Checkpoint**: Foundation ready
@@ -80,21 +80,21 @@
 **Depends on**: US1
 
 ### Tests (TDD)
-- [ ] T029 [P] [US2] Drafts/expiración al confirmar + aislamiento en `backend/tests/integration/test_drafts.py` (debe fallar)
+- [x] T029 [P] [US2] Drafts/expiración al confirmar + aislamiento en `backend/tests/integration/test_drafts.py` (debe fallar) — 22 tests: confirma una sola vez, 20 confirmaciones concurrentes -> única transacción y mismo id, vencido -> 'expirada' sin tocar ledger, saldo insuficiente -> sigue 'pendiente', ajeno -> 404, triggers (UPDATE inmutable/transición/confirmada requiere ledger+confirmed_at), DELETE/TRUNCATE "append-only", `wallet_app` UPDATE sí/DELETE `InsufficientPrivilegeError`, endpoints y roles
 - [ ] T030 [P] [US2] MCP tools (no confirm/execute, handles) en `backend/tests/contract/test_mcp_tools.py` (debe fallar)
 - [ ] T031 [P] [US2] Orchestrator con tool calls scripted en `backend/tests/integration/test_assistant_orchestrator.py` (debe fallar)
 - [ ] T032 [P] [US2] Handles: rechazo de cuenta directa/handle ajeno/expirado/usado en `backend/tests/integration/test_recipients.py` (debe fallar)
 
 ### Implementation
-- [ ] T033 [P] [US2] Domain transfers + RecipientHandle en `backend/src/wallet_ai/domain/transfers/`
-- [ ] T034 [P] [US2] Migraciones drafts/transferencias (recipient_handle, sin PENDING, draft_id único) en `backend/alembic/versions/`
-- [ ] T035 [US2] DraftRepository + expiración evaluada al confirmar en `backend/src/wallet_ai/infrastructure/db/draft_repository.py`
+- [x] T033 [P] [US2] Domain transfers + RecipientHandle en `backend/src/wallet_ai/domain/transfers/` — `draft.py` (entidad `Draft` + máquina de estados pendiente/confirmada/rechazada/expirada) y `errors.py` (`DraftNotFound`, `DraftNotConfirmable`, `DraftExpired`, `InvalidDraft`). `RecipientHandle` sigue pendiente (tramo de handles)
+- [x] T034 [P] [US2] Migraciones drafts/transferencias (recipient_handle, sin PENDING, draft_id único) en `backend/alembic/versions/` — `20261022_0006_transfer_drafts.py`: SQL explícito, downgrade funcional, trigger BEFORE UPDATE (inmutabilidad + transiciones solo desde 'pendiente' + `ledger_transaction_id`/`confirmed_at` al confirmar), BEFORE INSERT (sin cuentas de sistema), BEFORE DELETE y BEFORE TRUNCATE, y grants `wallet_app` SELECT/INSERT/UPDATE. `recipient_handle` queda para el tramo de handles; la idempotencia va en `ledger_transactions.idempotency_key` = id del borrador
+- [x] T035 [US2] DraftRepository + expiración evaluada al confirmar en `backend/src/wallet_ai/infrastructure/db/draft_repository.py` — `get(for_update=True)`, `create`, `list_for_user`, `mark_*`; participa en la transacción abierta por el caso de uso (no abre la suya)
 - [ ] T036 [US2] RecipientHandleRepository (emisión ligada a solicitante, vencimiento 15m, consumo) en `backend/src/wallet_ai/infrastructure/db/recipient_repository.py`
-- [ ] T037 [US2] Draft service (recibe handle, valida propiedad/expiración/consumo, idempotencia por draft_id) en `backend/src/wallet_ai/application/transfers/`
+- [x] T037 [US2] Draft service (recibe handle, valida propiedad/expiración/consumo, idempotencia por draft_id) en `backend/src/wallet_ai/application/transfers/` — tramo A (borradores y confirmación separada, sin handles): un archivo por caso `create_draft.py`, `list_drafts.py`, `reject_draft.py`, `confirm_draft.py`. `confirm_draft` en UNA transacción: `FOR UPDATE`, propiedad, idempotencia (ya confirmado -> mismo id), terminal -> 409, vencido -> marca 'expirada' y falla, transfiere con `in_transaction=True` y actualiza el borrador. La validación de handle llega en el tramo de handles
 - [ ] T038 [US2] Orchestrator en `backend/src/wallet_ai/application/assistant/orchestrator.py` + registry compartido con MCP
 - [ ] T039 [US2] Fake LLM scripted tool calls en `backend/src/wallet_ai/infrastructure/providers/fake/llm.py`
 - [ ] T040 [US2] /recipients GET en `backend/src/wallet_ai/interfaces/api/routers/recipients.py`
-- [ ] T041 [US2] Drafts + /drafts/{id}/confirm (separado) en `backend/src/wallet_ai/interfaces/api/routers/drafts.py`
+- [x] T041 [US2] Drafts + /drafts/{id}/confirm (separado) en `backend/src/wallet_ai/interfaces/api/routers/drafts.py` — GET /drafts, GET /drafts/{id}, POST /drafts/{id}/reject y POST /drafts/{id}/confirm (solo rol cliente, `X-Trace-Id`, montos como string decimal, 404/409, confirmación idempotente). `POST /drafts` (creación con handle) queda fuera del tramo A
 - [ ] T042 [US2] MCP tools (get_balance,list_transactions,find_recipient,draft_transfer) en `backend/src/wallet_ai/interfaces/mcp/tools/`
 - [ ] T043 [US2] Chat SSE (X-Trace-Id header + primer evento) en `backend/src/wallet_ai/interfaces/api/routers/chat.py`
 - [ ] T044 [US2] Hacer pasar tests US2
