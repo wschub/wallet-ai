@@ -131,11 +131,12 @@ paths:
                 items:
                   $ref: '#/components/schemas/Draft'
         '401': { $ref: '#/components/responses/Unauthorized' }
+        '403': { $ref: '#/components/responses/Forbidden' }
 
-  /drafts/{id}/confirm:
-    post:
+  /drafts/{id}:
+    get:
       tags: [drafts]
-      summary: Confirmación separada. Expiración evaluada al confirmar. Idempotencia por draft_id.
+      summary: Obtener un borrador propio. Devuelve 404 si no existe o es ajeno.
       security:
         - bearerAuth: []
       parameters:
@@ -145,7 +146,35 @@ paths:
           schema: { type: string, format: uuid }
       responses:
         '200':
-          description: Transferencia ejecutada
+          description: Borrador
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Draft'
+        '401': { $ref: '#/components/responses/Unauthorized' }
+        '403': { $ref: '#/components/responses/Forbidden' }
+        '404': { $ref: '#/components/responses/NotFound' }
+
+  /drafts/{id}/confirm:
+    post:
+      tags: [drafts]
+      summary: >-
+        Confirmación separada. Único punto donde se mueve dinero. La expiración
+        se evalúa al confirmar (si venció, el borrador pasa a 'expirada' y se
+        responde 409). La confirmación es idempotente: confirmar un borrador ya
+        confirmado devuelve el MISMO transaction_id (200) sin crear una nueva
+        transacción en el ledger. Un borrador rechazado o expirado responde 409;
+        un borrador ajeno responde 404.
+      security:
+        - bearerAuth: []
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema: { type: string, format: uuid }
+      responses:
+        '200':
+          description: Transferencia ejecutada (o ya confirmada; mismo transaction_id)
           content:
             application/json:
               schema:
@@ -231,6 +260,10 @@ components:
     Forbidden: { description: Prohibido, content: { application/json: { schema: { $ref: '#/components/schemas/Error' } } } }
     NotFound: { description: No encontrado, content: { application/json: { schema: { $ref: '#/components/schemas/Error' } } } }
     Conflict: { description: Conflicto/ya usado/expirado, content: { application/json: { schema: { $ref: '#/components/schemas/Error' } } } }
+  headers:
+    X-Trace-Id:
+      description: Identificador de traza; presente en TODAS las respuestas (tambien 401/403/404/409).
+      schema: { type: string }
   schemas:
     LoginRequest: { type: object, required: [email,password], properties: { email: {type:string}, password: {type:string} } }
     TokenResponse: { type: object, required: [access_token], properties: { access_token: {type:string} } }
@@ -240,7 +273,7 @@ components:
     Recipient: { type: object, required: [recipient_id,name_masked,expires_at], properties: { recipient_id: {type:string,description:"Handle opaco"}, name_masked: {type:string}, expires_at: {type:string,format:date-time} } }
     PaginatedRecipients: { type: object, required: [items], properties: { items: {type:array,items:{$ref:'#/components/schemas/Recipient'}}, next_cursor: {type:string,nullable:true} } }
     DraftCreate: { type: object, required: [recipient_id,amount], properties: { recipient_id: {type:string,description:"Handle opaco emitido por /recipients o find_recipient"}, amount: {type:string,description:"NUMERIC(18,2) como string"} } }
-    Draft: { type: object, required: [id,status,amount,expires_at,recipient_id], properties: { id: {type:string,format:uuid}, status: {type:string,enum:[pendiente,confirmada,rechazada,expirada]}, amount: {type:string}, recipient_id: {type:string}, expires_at: {type:string,format:date-time} } }
+    Draft: { type: object, required: [id,status,amount,from_account_id,to_account_id,expires_at], properties: { id: {type:string,format:uuid}, status: {type:string,enum:[pendiente,confirmada,rechazada,expirada]}, amount: {type:string}, from_account_id: {type:string,format:uuid}, to_account_id: {type:string,format:uuid}, expires_at: {type:string,format:date-time}, confirmed_at: {type:string,format:date-time,nullable:true}, ledger_transaction_id: {type:string,format:uuid,nullable:true}, created_at: {type:string,format:date-time,nullable:true} } }
     TransferExecuted: { type: object, required: [transaction_id,draft_id], properties: { transaction_id: {type:string,format:uuid}, draft_id: {type:string,format:uuid} } }
     ChatRequest: { type: object, required: [message], properties: { message: {type:string} } }
     AuditEvent: { type: object, required: [trace_id,event_type,created_at], properties: { trace_id: {type:string}, event_type: {type:string}, payload: {type:object}, reason: {type:string}, created_at: {type:string,format:date-time} } }
