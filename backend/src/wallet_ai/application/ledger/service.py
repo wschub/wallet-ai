@@ -28,6 +28,7 @@ class LedgerService:
         to_account_id: UUID | str,
         amount,
         idempotency_key: str,
+        in_transaction: bool = False,
     ):
         d = self._repo._validate_amount(amount)
         h = self._request_hash(from_user_id, from_account_id, to_account_id, d)
@@ -38,6 +39,7 @@ class LedgerService:
             amount=d,
             idempotency_key=idempotency_key,
             request_hash=h,
+            in_transaction=in_transaction,
         )
         return res
 

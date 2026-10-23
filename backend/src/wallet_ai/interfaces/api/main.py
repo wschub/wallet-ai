@@ -6,10 +6,11 @@ from fastapi import FastAPI, Request
 from fastapi.responses import JSONResponse
 
 from wallet_ai.infrastructure.config.settings import Settings
-from wallet_ai.interfaces.api.routers import accounts
+from wallet_ai.interfaces.api.routers import accounts, drafts
 
 app = FastAPI(title="wallet-ai")
 app.include_router(accounts.router)
+app.include_router(drafts.router)
 
 
 @app.middleware("http")

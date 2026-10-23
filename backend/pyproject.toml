@@ -60,3 +60,22 @@ forbidden_modules = [
     "pydantic_settings",
     "mcp",
 ]
+
+# Aislamiento de la confirmacion (T019): el asistente, MCP, los proveedores LLM
+# y los guardrails NO pueden ejecutar transferencias ni tocar el ledger. La
+# confirmacion de borradores vive en un caso de uso separado que solo se invoca
+# desde `interfaces/api/routers/drafts.py`.
+[[tool.importlinter.contracts]]
+name = "Confirmation isolation"
+type = "forbidden"
+source_modules = [
+    "wallet_ai.application.assistant",
+    "wallet_ai.interfaces.mcp",
+    "wallet_ai.infrastructure.providers",
+    "wallet_ai.infrastructure.guardrails",
+]
+forbidden_modules = [
+    "wallet_ai.application.transfers.confirm_draft",
+    "wallet_ai.application.ledger",
+    "wallet_ai.infrastructure.db.ledger_repository",
+]

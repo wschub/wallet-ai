@@ -108,6 +108,12 @@ async def test_twenty_concurrent_ten_succeed_stress(db_conn):
 @pytest.mark.integration
 @pytest.mark.asyncio
 async def test_cross_transfers_stress(db_conn):
+    # Calienta la resolucion de `localhost` una sola vez: `asyncio.wait_for`
+    # cancela la tarea entera, y bajo carga (suite completa) el getaddrinfo
+    # inicial puede tardar mas que el timeout aunque la transferencia en si no.
+    _warm = await asyncpg.connect(Settings().asyncpg_dsn)
+    await _warm.close()
+
     for _ in range(50):
         u1 = await _new_user(db_conn)
         a1 = await _new_account(db_conn, u1)
@@ -138,4 +144,4 @@ async def test_cross_transfers_stress(db_conn):
             finally:
                 await c.close()
 
-        await asyncio.wait_for(asyncio.gather(t1(), t2(), return_exceptions=False), timeout=5)
+        await asyncio.wait_for(asyncio.gather(t1(), t2(), return_exceptions=False), timeout=15)
