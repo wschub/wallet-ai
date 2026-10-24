@@ -7,7 +7,7 @@ import pytest
 @pytest.mark.integration
 @pytest.mark.asyncio
 async def test_wallet_app_role_permissions(db_conn):
-    tid = f"t-{uuid.uuid4().hex}"
+    tid = uuid.uuid4().hex
     await db_conn.execute(
         "INSERT INTO interactions (id, trace_id, user_id, channel, created_at) VALUES ($1,$2,$3,$4,now()) ON CONFLICT DO NOTHING",
         uuid.uuid4(),
@@ -50,7 +50,7 @@ async def test_wallet_app_role_permissions(db_conn):
 @pytest.mark.integration
 @pytest.mark.asyncio
 async def test_triggers_reject_by_default_role(db_conn):
-    tid = f"t-{uuid.uuid4().hex}"
+    tid = uuid.uuid4().hex
     await db_conn.execute(
         "INSERT INTO interactions (id, trace_id, user_id, channel, created_at) VALUES ($1,$2,$3,$4,now()) ON CONFLICT DO NOTHING",
         uuid.uuid4(),
