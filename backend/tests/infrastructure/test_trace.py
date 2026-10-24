@@ -82,3 +82,65 @@ def test_structured_logger_masks_exc_info_with_card(capsys):
     out, err = capsys.readouterr()
     assert "4111111111111111" not in out
     assert "<CARD>" in out
+
+
+def test_trace_middleware_returns_generic_500_and_logs_masked_exception():
+    import json
+    import logging
+    import re
+
+    from fastapi import FastAPI
+    from fastapi.testclient import TestClient
+
+    from wallet_ai.interfaces.api.main import logger, trace_middleware
+
+    class ListHandler(logging.Handler):
+        def __init__(self):
+            super().__init__()
+            self.records: list[str] = []
+
+        def emit(self, record: logging.LogRecord) -> None:
+            self.records.append(record.getMessage())
+
+    failure_app = FastAPI()
+    failure_app.middleware("http")(trace_middleware)
+
+    @failure_app.get("/boom")
+    async def boom():
+        raise RuntimeError("contact user@example.com with card 4111111111111111")
+
+    handler = ListHandler()
+    logger._logger.addHandler(handler)
+    try:
+        client = TestClient(failure_app, raise_server_exceptions=False)
+        trace_id = "trace-middleware-log-test"
+        response = client.get("/boom", headers={"X-Trace-Id": trace_id})
+    finally:
+        logger._logger.removeHandler(handler)
+
+    assert response.status_code == 500
+    assert response.json() == {"detail": "internal error"}
+    # el trace_id de la respuesta SIEMPRE lo genera el servidor (32 hex):
+    # el que trae el cliente nunca se usa como identificador
+    server_trace = response.headers["X-Trace-Id"]
+    assert server_trace != trace_id
+    assert re.fullmatch(r"[0-9a-f]{32}", server_trace)
+    assert "user@example.com" not in response.text
+    assert "4111111111111111" not in response.text
+    assert "RuntimeError" not in response.text
+
+    # log de request + log de excepcion
+    assert len(handler.records) == 2
+    request_record = json.loads(handler.records[0])
+    exception_record = json.loads(handler.records[1])
+    assert request_record["message"] == "request received"
+    assert request_record["trace_id"] == server_trace
+    # el valor del cliente solo aparece como client_request_id
+    assert request_record["client_request_id"] == trace_id
+    assert exception_record["trace_id"] == server_trace
+    assert exception_record["message"] == "unhandled exception"
+    assert "RuntimeError" in exception_record["exception"]
+    assert "user@example.com" not in exception_record["exception"]
+    assert "4111111111111111" not in exception_record["exception"]
+    assert "<EMAIL>" in exception_record["exception"]
+    assert "<CARD>" in exception_record["exception"]

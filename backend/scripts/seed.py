@@ -11,9 +11,17 @@ import asyncpg
 from wallet_ai.interfaces.api.deps.auth import hash_password
 
 USERS = [
-    ("cliente@test.com", "cliente"),
-    ("soporte@test.com", "soporte"),
-    ("compliance@test.com", "compliance"),
+    ("cliente@test.com", "cliente", "Cliente Demo"),
+    ("soporte@test.com", "soporte", "Soporte Demo"),
+    ("compliance@test.com", "compliance", "Compliance Demo"),
+]
+
+# Destinatarios de demostracion. Dos usuarios comparten el nombre de pila a
+# proposito ("María") para poder probar la ambiguedad de la busqueda por nombre.
+RECIPIENTS = [
+    ("maria.garcia@test.com", "cliente", "María García"),
+    ("maria.gomez@test.com", "cliente", "María Gómez"),
+    ("carlos.ruiz@test.com", "cliente", "Carlos Ruiz"),
 ]
 
 # ONLY FOR DEMONSTRATION - DO NOT USE IN PRODUCTION
@@ -31,13 +39,20 @@ async def _ensure_system_account(conn: asyncpg.Connection) -> uuid.UUID:
     else:
         suid = uuid.uuid4()
         await conn.execute(
-            "INSERT INTO users (id, email, role, password_hash, created_at) VALUES ($1,$2,$3,$4,now()) "
-            "ON CONFLICT (email) DO UPDATE SET role='cliente', password_hash='INVALID-SYSTEM'",
+            "INSERT INTO users (id, email, role, password_hash, created_at, display_name) "
+            "VALUES ($1,$2,$3,$4,now(),$5) "
+            "ON CONFLICT (email) DO UPDATE SET role='cliente', password_hash='INVALID-SYSTEM', "
+            "display_name='Sistema Wallet'",
             suid,
             "system@wallet.ai",
             "cliente",
             "INVALID-SYSTEM",
+            "Sistema Wallet",
         )
+    await conn.execute(
+        "UPDATE users SET display_name = COALESCE(display_name, 'Sistema Wallet') WHERE id = $1",
+        suid,
+    )
     acc_id = uuid.uuid4()
     await conn.execute(
         "INSERT INTO accounts (id, user_id, currency, is_system, created_at) VALUES ($1,$2,$3,true,now())",
@@ -89,20 +104,26 @@ async def seed() -> None:
 
     try:
         await _ensure_system_account(conn)
-        for email, role in USERS:
-            user_id = str(uuid.uuid4())
+        for email, role, display_name in [*USERS, *RECIPIENTS]:
             row = await conn.fetchrow("SELECT id FROM users WHERE email = $1", email)
             if row:
                 uid = row["id"]
-            else:
                 await conn.execute(
-                    "INSERT INTO users (id, email, role, password_hash, created_at) VALUES ($1,$2,$3,$4,now())",
-                    uuid.UUID(user_id),
+                    "UPDATE users SET display_name = $2 WHERE id = $1",
+                    uid,
+                    display_name,
+                )
+            else:
+                uid = uuid.uuid4()
+                await conn.execute(
+                    "INSERT INTO users (id, email, role, password_hash, display_name, created_at) "
+                    "VALUES ($1,$2,$3,$4,$5,now())",
+                    uid,
                     email,
                     role,
                     hash_password(DEMO_PASSWORD),
+                    display_name,
                 )
-                uid = uuid.UUID(user_id)
             acc = await conn.fetchrow("SELECT id FROM accounts WHERE user_id = $1", uid)
             if not acc:
                 acc_id = uuid.uuid4()

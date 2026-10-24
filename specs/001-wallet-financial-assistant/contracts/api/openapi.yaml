@@ -77,7 +77,8 @@ paths:
         - name: q
           in: query
           required: true
-          schema: { type: string, minLength: 2 }
+          description: Nombre a buscar. Minimo 3 caracteres.
+          schema: { type: string, minLength: 3 }
         - name: limit
           in: query
           schema: { type: integer, minimum: 1, maximum: 20, default: 5 }
@@ -86,13 +87,19 @@ paths:
           schema: { type: string }
       responses:
         '200':
-          description: Lista paginada de destinatarios con handle
+          description: Destinatarios con handle opaco y nombre enmascarado (maximo 5)
+          headers:
+            X-Trace-Id:
+              $ref: '#/components/headers/X-Trace-Id'
           content:
             application/json:
               schema:
                 $ref: '#/components/schemas/PaginatedRecipients'
+        '400': { $ref: '#/components/responses/BadRequest' }
         '401':
           $ref: '#/components/responses/Unauthorized'
+        '403':
+          $ref: '#/components/responses/Forbidden'
 
   /drafts:
     post:
@@ -108,14 +115,24 @@ paths:
               $ref: '#/components/schemas/DraftCreate'
       responses:
         '201':
-          description: Borrador creado
+          description: >-
+            Borrador creado en estado 'pendiente'. No mueve dinero ni escribe en
+            el ledger: eso ocurre solo en /drafts/{id}/confirm.
+          headers:
+            X-Trace-Id:
+              $ref: '#/components/headers/X-Trace-Id'
           content:
             application/json:
               schema:
                 $ref: '#/components/schemas/Draft'
+        '400': { $ref: '#/components/responses/BadRequest' }
         '401': { $ref: '#/components/responses/Unauthorized' }
         '403': { $ref: '#/components/responses/Forbidden' }
-        '404': { $ref: '#/components/responses/NotFound' }
+        '404':
+          description: Handle desconocido, vencido o emitido a otro usuario (mismo error generico)
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/Error' }
         '409': { $ref: '#/components/responses/Conflict' }
     get:
       tags: [drafts]
@@ -258,6 +275,7 @@ components:
   responses:
     Unauthorized: { description: No autorizado, content: { application/json: { schema: { $ref: '#/components/schemas/Error' } } } }
     Forbidden: { description: Prohibido, content: { application/json: { schema: { $ref: '#/components/schemas/Error' } } } }
+    BadRequest: { description: Petición inválida (query corta o monto no decimal), content: { application/json: { schema: { $ref: '#/components/schemas/Error' } } } }
     NotFound: { description: No encontrado, content: { application/json: { schema: { $ref: '#/components/schemas/Error' } } } }
     Conflict: { description: Conflicto/ya usado/expirado, content: { application/json: { schema: { $ref: '#/components/schemas/Error' } } } }
   headers:
@@ -270,10 +288,10 @@ components:
     AccountBalance: { type: object, required: [account_id,balance,currency], properties: { account_id: {type:string,format:uuid}, balance: {type:string}, currency: {type:string} } }
     Transaction: { type: object, required: [id,amount,type,created_at], properties: { id: {type:string,format:uuid}, amount: {type:string}, type: {type:string,enum:[DEBIT,CREDIT]}, created_at: {type:string,format:date-time} } }
     PaginatedTransactions: { type: object, required: [items], properties: { items: {type:array,items:{$ref:'#/components/schemas/Transaction'}}, next_cursor: {type:string,nullable:true} } }
-    Recipient: { type: object, required: [recipient_id,name_masked,expires_at], properties: { recipient_id: {type:string,description:"Handle opaco"}, name_masked: {type:string}, expires_at: {type:string,format:date-time} } }
-    PaginatedRecipients: { type: object, required: [items], properties: { items: {type:array,items:{$ref:'#/components/schemas/Recipient'}}, next_cursor: {type:string,nullable:true} } }
-    DraftCreate: { type: object, required: [recipient_id,amount], properties: { recipient_id: {type:string,description:"Handle opaco emitido por /recipients o find_recipient"}, amount: {type:string,description:"NUMERIC(18,2) como string"} } }
-    Draft: { type: object, required: [id,status,amount,from_account_id,to_account_id,expires_at], properties: { id: {type:string,format:uuid}, status: {type:string,enum:[pendiente,confirmada,rechazada,expirada]}, amount: {type:string}, from_account_id: {type:string,format:uuid}, to_account_id: {type:string,format:uuid}, expires_at: {type:string,format:date-time}, confirmed_at: {type:string,format:date-time,nullable:true}, ledger_transaction_id: {type:string,format:uuid,nullable:true}, created_at: {type:string,format:date-time,nullable:true} } }
+    Recipient: { type: object, required: [recipient_id,name_masked,expires_at], properties: { recipient_id: {type:string,description:"Handle opaco (no es un id de cuenta)"}, name_masked: {type:string,description:"Nombre enmascarado, p.ej. 'María G***'"}, expires_at: {type:string,format:date-time,description:"El handle vence a los 15 minutos"} } }
+    PaginatedRecipients: { type: object, required: [items], properties: { items: {type:array,items:{$ref:'#/components/schemas/Recipient'},maxItems:5}, next_cursor: {type:string,nullable:true} } }
+    DraftCreate: { type: object, required: [recipient_id,amount], properties: { recipient_id: {type:string,description:"Handle opaco emitido por /recipients o find_recipient. Nunca un id de cuenta."}, amount: {type: string, pattern: '^[0-9]+([.][0-9]{1,2})?$', description: "NUMERIC(18,2) como string decimal positivo"} } }
+    Draft: { type: object, required: [id,status,amount,expires_at], properties: { id: {type:string,format:uuid}, status: {type:string,enum:[pendiente,confirmada,rechazada,expirada]}, amount: {type:string}, expires_at: {type:string,format:date-time}, confirmed_at: {type:string,format:date-time,nullable:true}, ledger_transaction_id: {type:string,format:uuid,nullable:true}, created_at: {type:string,format:date-time,nullable:true} } }
     TransferExecuted: { type: object, required: [transaction_id,draft_id], properties: { transaction_id: {type:string,format:uuid}, draft_id: {type:string,format:uuid} } }
     ChatRequest: { type: object, required: [message], properties: { message: {type:string} } }
     AuditEvent: { type: object, required: [trace_id,event_type,created_at], properties: { trace_id: {type:string}, event_type: {type:string}, payload: {type:object}, reason: {type:string}, created_at: {type:string,format:date-time} } }
