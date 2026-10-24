@@ -6,7 +6,7 @@ import json
 import time
 from typing import Any
 
-from fastapi import Depends, Header, HTTPException
+from fastapi import Depends, HTTPException
 from fastapi.security import HTTPAuthorizationCredentials, HTTPBearer
 
 from wallet_ai.infrastructure.config.settings import Settings
@@ -78,10 +78,11 @@ def decode_token(token: str, secret: str) -> dict[str, Any]:
 
 async def get_current_user(
     creds: HTTPAuthorizationCredentials | None = Depends(bearer),
-    x_trace_id: str | None = Header(default=None),
 ) -> dict[str, Any]:
     if not creds:
         raise HTTPException(status_code=401, detail="missing token")
     s = Settings()
     payload = decode_token(creds.credentials, s.AUTH_JWT_SECRET)
-    return {"sub": payload.get("sub"), "role": payload.get("role"), "trace_id": x_trace_id}
+    # el X-Trace-Id de la peticion no se expone aqui: el trace_id lo genera
+    # siempre el middleware y el valor del cliente nunca es identificador
+    return {"sub": payload.get("sub"), "role": payload.get("role")}
