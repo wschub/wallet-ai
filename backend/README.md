@@ -34,8 +34,9 @@ Se usan dos bases para evitar mezclar datos:
 
 Los triggers `BEFORE UPDATE/DELETE/TRUNCATE` en `audit_events` fuerzan el modo append-only, pero **un superusuario puede desactivarlos**. Por ello la aplicación debe conectarse con un rol sin ese privilegio (`wallet_app`), y esa garantía se verifica con `SET ROLE wallet_app` en los tests.
 
-Recipient handles are opaque, tied to the requesting user and valid for 15 minutes; they are reusable within that window. Every draft still requires a separate human confirmation.
 
 ### Recipient handles
 
 Recipient handles are opaque, tied to the requesting user and valid for 15 minutes. They are reusable within that window (the table is append-only, so there is no consumed state). Every draft still requires a separate human confirmation through `POST /drafts/{id}/confirm`, which the assistant and the MCP server cannot reach.
+
+Dev databases created before migration 0008 may contain legacy trace ids; recreate them.
