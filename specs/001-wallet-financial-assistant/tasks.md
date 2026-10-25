@@ -95,7 +95,7 @@
 - [ ] T039 [US2] Fake LLM scripted tool calls en `backend/src/wallet_ai/infrastructure/providers/fake/llm.py`
 - [x] T040 [US2] /recipients GET en `backend/src/wallet_ai/interfaces/api/routers/recipients.py` — `GET /recipients?q=` (mínimo 3 caracteres, máximo 5 resultados, solo rol cliente, `X-Trace-Id` en toda respuesta, 400/401/403); devuelve handle + nombre enmascarado, sin correo ni ids de usuario/cuenta
 - [x] T041 [US2] Drafts + /drafts/{id}/confirm (separado) en `backend/src/wallet_ai/interfaces/api/routers/drafts.py` — GET /drafts, GET /drafts/{id}, POST /drafts/{id}/reject y POST /drafts/{id}/confirm (solo rol cliente, `X-Trace-Id`, montos como string decimal, 404/409, confirmación idempotente). `POST /drafts` (creación con handle) se añade en B1: body `{recipient_id: handle, amount: string decimal}`, crea el borrador pendiente en una transacción junto con la auditoría, no publica ids de cuenta y no toca el ledger
-- [ ] T042 [US2] MCP tools (get_balance,list_transactions,find_recipient,draft_transfer) en `backend/src/wallet_ai/interfaces/mcp/tools/`
+- [x] T042 [US2] MCP tools (get_balance,list_transactions,find_recipient,draft_transfer) en `backend/src/wallet_ai/application/assistant/tools/`
 - [ ] T043 [US2] Chat SSE (X-Trace-Id header + primer evento) en `backend/src/wallet_ai/interfaces/api/routers/chat.py`
 - [ ] T044 [US2] Hacer pasar tests US2
 
