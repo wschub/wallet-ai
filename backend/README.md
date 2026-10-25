@@ -43,6 +43,6 @@ Dev databases created before migration 0008 may contain legacy trace ids; recrea
 
 #### Notas PR
 
-Extra arguments are dropped by the MCP SDK; identity always comes from the token
+Tokens issued by /auth/login last 1 hour by default; use a shorter lifetime for MCP tokens.
 
 issue_token(ttl) debe ser igual a 60 minutos
