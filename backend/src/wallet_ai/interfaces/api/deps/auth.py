@@ -4,6 +4,7 @@ import hashlib
 import hmac
 import json
 import time
+from collections.abc import Callable
 from typing import Any
 
 from fastapi import Depends, HTTPException
@@ -51,7 +52,9 @@ def create_token(sub: str, role: str, secret: str, exp_seconds: int = 3600) -> s
     return msg + "." + b64url(sig)
 
 
-def decode_token(token: str, secret: str) -> dict[str, Any]:
+def decode_token(
+    token: str, secret: str, *, clock: Callable[[], float] | None = None
+) -> dict[str, Any]:
     try:
         import base64
 
@@ -63,7 +66,10 @@ def decode_token(token: str, secret: str) -> dict[str, Any]:
         if len(parts) != 3:
             raise ValueError("bad token")
         payload = json.loads(b64url(parts[1]))
-        if payload.get("exp", 0) < int(time.time()):
+        # `clock` inyectable: el servidor MCP revalida el token en cada
+        # llamada y los tests pueden simular el vencimiento a mitad de sesion.
+        now = int(clock()) if clock is not None else int(time.time())
+        if payload.get("exp", 0) < now:
             raise ValueError("expired")
         msg = parts[0] + "." + parts[1]
         sig = hmac.new(secret.encode(), msg.encode(), hashlib.sha256).digest()

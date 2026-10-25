@@ -71,6 +71,7 @@ type = "forbidden"
 source_modules = [
     "wallet_ai.application.assistant",
     "wallet_ai.application.recipients",
+    "wallet_ai.application.accounts",
     "wallet_ai.interfaces.mcp",
     "wallet_ai.infrastructure.providers",
     "wallet_ai.infrastructure.guardrails",

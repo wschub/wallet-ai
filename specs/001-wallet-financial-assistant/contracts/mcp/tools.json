@@ -27,8 +27,7 @@
         "type": "object",
         "required": ["query"],
         "properties": {
-          "query": { "type": "string", "minLength": 2 },
-          "limit": { "type": "integer", "minimum": 1, "maximum": 20, "default": 5 }
+          "query": { "type": "string", "minLength": 3 }
         }
       },
       "outputSchema": {
@@ -60,8 +59,8 @@
         "type": "object",
         "required": ["recipient_id", "amount"],
         "properties": {
-          "recipient_id": { "type": "string", "description": "Handle opaco (find_recipient)" },
-          "amount": { "type": "string", "pattern": "^\\d+\\.\\d{2}$" }
+          "recipient_id": { "type": "string", "description": "Handle opaco emitido por find_recipient (RecipientHandle); nunca un ID de cuenta" },
+          "amount": { "type": "string", "description": "Monto como string decimal positivo (p.ej. '10.00'); nunca number", "pattern": "^\\d+\\.\\d{2}$" }
         }
       },
       "permissions": ["cliente"],
