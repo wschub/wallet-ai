@@ -40,3 +40,9 @@ Los triggers `BEFORE UPDATE/DELETE/TRUNCATE` en `audit_events` fuerzan el modo a
 Recipient handles are opaque, tied to the requesting user and valid for 15 minutes. They are reusable within that window (the table is append-only, so there is no consumed state). Every draft still requires a separate human confirmation through `POST /drafts/{id}/confirm`, which the assistant and the MCP server cannot reach.
 
 Dev databases created before migration 0008 may contain legacy trace ids; recreate them.
+
+#### Notas PR
+
+Extra arguments are dropped by the MCP SDK; identity always comes from the token
+
+issue_token(ttl) debe ser igual a 60 minutos
