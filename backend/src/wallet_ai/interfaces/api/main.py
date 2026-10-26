@@ -8,12 +8,13 @@ from fastapi.responses import JSONResponse
 
 from wallet_ai.infrastructure.config.settings import Settings
 from wallet_ai.infrastructure.tracing.logger import StructuredLogger
-from wallet_ai.interfaces.api.routers import accounts, drafts, recipients
+from wallet_ai.interfaces.api.routers import accounts, chat, drafts, recipients
 
 app = FastAPI(title="wallet-ai")
 app.include_router(accounts.router)
 app.include_router(drafts.router)
 app.include_router(recipients.router)
+app.include_router(chat.router)
 
 logger = StructuredLogger()
 

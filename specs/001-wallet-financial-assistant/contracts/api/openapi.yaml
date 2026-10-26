@@ -220,7 +220,12 @@ paths:
   /chat/stream:
     post:
       tags: [chat]
-      summary: SSE. trace_id en header X-Trace-Id y en primer evento SSE.
+      summary: >-
+        SSE. trace_id en header X-Trace-Id y en primer evento SSE. El stream
+        termina siempre con done o error (mensajes genéricos). Eventos:
+        trace, tool, message, draft, clarification, done, error. Cualquier
+        rol autenticado puede chatear; los permisos los aplica el registro
+        de herramientas.
       security:
         - bearerAuth: []
       requestBody:
@@ -231,7 +236,10 @@ paths:
               $ref: '#/components/schemas/ChatRequest'
       responses:
         '200':
-          description: text/event-stream
+          description: >-
+            text/event-stream. Primer evento 'trace' con el trace_id del
+            servidor; 'draft' sale siempre del resultado de draft_transfer
+            (id, monto string, nombre enmascarado, expires_at).
           headers:
             X-Trace-Id:
               schema: { type: string }
@@ -239,6 +247,7 @@ paths:
             text/event-stream:
               schema: { type: string }
         '401': { $ref: '#/components/responses/Unauthorized' }
+        '422': { description: Cuerpo inválido, content: { application/json: { schema: { $ref: '#/components/schemas/Error' } } } }
 
   /audit:
     get:
@@ -293,7 +302,7 @@ components:
     DraftCreate: { type: object, required: [recipient_id,amount], properties: { recipient_id: {type:string,description:"Handle opaco emitido por /recipients o find_recipient. Nunca un id de cuenta."}, amount: {type: string, pattern: '^[0-9]+([.][0-9]{1,2})?$', description: "NUMERIC(18,2) como string decimal positivo"} } }
     Draft: { type: object, required: [id,status,amount,expires_at], properties: { id: {type:string,format:uuid}, status: {type:string,enum:[pendiente,confirmada,rechazada,expirada]}, amount: {type:string}, expires_at: {type:string,format:date-time}, confirmed_at: {type:string,format:date-time,nullable:true}, ledger_transaction_id: {type:string,format:uuid,nullable:true}, created_at: {type:string,format:date-time,nullable:true} } }
     TransferExecuted: { type: object, required: [transaction_id,draft_id], properties: { transaction_id: {type:string,format:uuid}, draft_id: {type:string,format:uuid} } }
-    ChatRequest: { type: object, required: [message], properties: { message: {type:string} } }
+    ChatRequest: { type: object, description: 'Sin roles assistant ni tool: solo texto del usuario y un handle opaco (extra=forbid)', required: [message], properties: { message: {type: string, minLength: 1, maxLength: 1000}, previous_user_messages: {type: array, maxItems: 5, items: {type: string}}, selected_recipient_id: {type: string, nullable: true, description: 'Handle opaco elegido por el usuario tras una clarificación; el modelo nunca elige entre candidatos'} } }
     AuditEvent: { type: object, required: [trace_id,event_type,created_at], properties: { trace_id: {type:string}, event_type: {type:string}, payload: {type:object}, reason: {type:string}, created_at: {type:string,format:date-time} } }
     PaginatedAuditEvents: { type: object, required: [items], properties: { items: {type:array,items:{$ref:'#/components/schemas/AuditEvent'}}, next_cursor: {type:string,nullable:true} } }
     Error: { type: object, required: [error], properties: { error: {type:string}, detail: {type:string} } }

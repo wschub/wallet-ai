@@ -16,3 +16,24 @@ class ToolCallAuditor(Protocol):
     async def record_tool_call(
         self, *, trace_id: str, user_id: UUID, payload: dict[str, Any]
     ) -> None: ...
+
+
+class AssistantTurnAuditor(Protocol):
+    """Auditoria de los eventos de un turno del asistente (tramo C).
+
+    `record_event` escribe eventos genericos del orquestador (`llm_call`,
+    `guardrail_block`, `response`) con el `trace_id` de siempre y
+    garantizando ANTES la fila de `interactions` (igual que
+    `record_tool_call`, pero con `event_type` libre).
+    """
+
+    async def ensure_interaction(self, *, trace_id: str, user_id: UUID) -> None: ...
+
+    async def record_event(
+        self,
+        *,
+        trace_id: str,
+        user_id: UUID,
+        event_type: str,
+        payload: dict[str, Any],
+    ) -> None: ...

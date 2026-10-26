@@ -1,5 +1,5 @@
 from .embedding import EmbeddingProvider
-from .llm import LLMProvider
+from .llm import LLMProvider, LLMResponse, ToolCallRequest
 from .pii_service import PIIService
 from .repositories import (
     AuditRepository,
@@ -13,6 +13,8 @@ from .trace import TraceContext
 
 __all__ = [
     "LLMProvider",
+    "LLMResponse",
+    "ToolCallRequest",
     "EmbeddingProvider",
     "Reranker",
     "PIIService",

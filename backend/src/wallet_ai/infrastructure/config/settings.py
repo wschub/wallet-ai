@@ -21,6 +21,7 @@ class Settings(BaseSettings):
     DATABASE_URL: str = "postgresql+asyncpg://localhost:5432/wallet"
     AUTH_JWT_SECRET: str = "dev-secret"
     APP_ENV: str = "dev"
+    LLM_TIMEOUT_SECONDS: float = 10.0
     OPENAI_API_KEY: str | None = None
     AZURE_OPENAI_API_KEY: str | None = None
 

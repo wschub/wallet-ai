@@ -82,7 +82,7 @@
 ### Tests (TDD)
 - [x] T029 [P] [US2] Drafts/expiración al confirmar + aislamiento en `backend/tests/integration/test_drafts.py` (debe fallar) — 22 tests: confirma una sola vez, 20 confirmaciones concurrentes -> única transacción y mismo id, vencido -> 'expirada' sin tocar ledger, saldo insuficiente -> sigue 'pendiente', ajeno -> 404, triggers (UPDATE inmutable/transición/confirmada requiere ledger+confirmed_at), DELETE/TRUNCATE "append-only", `wallet_app` UPDATE sí/DELETE `InsufficientPrivilegeError`, endpoints y roles
 - [ ] T030 [P] [US2] MCP tools (no confirm/execute, handles) en `backend/tests/contract/test_mcp_tools.py` (debe fallar)
-- [ ] T031 [P] [US2] Orchestrator con tool calls scripted en `backend/tests/integration/test_assistant_orchestrator.py` (debe fallar)
+- [x] T031 [P] [US2] Orchestrator con tool calls scripted en `backend/tests/integration/test_assistant_orchestrator.py` (debe fallar)
 - [x] T032 [P] [US2] Handles: rechazo de cuenta directa/handle ajeno/expirado en `backend/tests/integration/test_recipients.py` — 15 tests: MISMO error genérico para handle desconocido/vencido/ajeno/UUID de cuenta, búsqueda de 2 caracteres rechazada, dos Marías con handles distintos y sin PII, exclusión del propio solicitante y de cuentas de sistema, máximo 5, `POST /drafts` pendiente sin tocar el ledger, 401/403/400 con `X-Trace-Id`, auditoría `tool_call` enmascarada y privilegios `wallet_app`. El caso "usado" no aplica en B1: `recipient_handles` es append-only (sin `used_at`), la vigencia la define `expires_at`
 
 ### Implementation
@@ -91,12 +91,12 @@
 - [x] T035 [US2] DraftRepository + expiración evaluada al confirmar en `backend/src/wallet_ai/infrastructure/db/draft_repository.py` — `get(for_update=True)`, `create`, `list_for_user`, `mark_*`; participa en la transacción abierta por el caso de uso (no abre la suya)
 - [x] T036 [US2] RecipientHandleRepository (emisión ligada a solicitante, vencimiento 15m) en `backend/src/wallet_ai/infrastructure/db/recipient_repository.py` — `search`, `issue_handle` (`secrets.token_urlsafe(16)`) y `find`; sin consumo mutable: la tabla es append-only (UPDATE prohibido), la vigencia es `expires_at` y cada uso queda auditado
 - [x] T037 [US2] Draft service (recibe handle, valida propiedad/expiración, idempotencia por draft_id) en `backend/src/wallet_ai/application/transfers/` — tramo A (borradores y confirmación separada, sin handles): un archivo por caso `create_draft.py`, `list_drafts.py`, `reject_draft.py`, `confirm_draft.py`. `confirm_draft` en UNA transacción: `FOR UPDATE`, propiedad, idempotencia (ya confirmado -> mismo id), terminal -> 409, vencido -> marca 'expirada' y falla, transfiere con `in_transaction=True` y actualiza el borrador. La validación de handle se añade en B1 con `application/recipients/create_draft_from_handle.py`, que resuelve el handle (mismo error genérico) y delega en `create_draft`; ni el caso de uso ni `application/recipients` importan el ledger ni `confirm_draft`
-- [ ] T038 [US2] Orchestrator en `backend/src/wallet_ai/application/assistant/orchestrator.py` + registry compartido con MCP
-- [ ] T039 [US2] Fake LLM scripted tool calls en `backend/src/wallet_ai/infrastructure/providers/fake/llm.py`
+- [x] T038 [US2] Orchestrator en `backend/src/wallet_ai/application/assistant/orchestrator.py` + registry compartido con MCP
+- [x] T039 [US2] Fake LLM scripted tool calls en `backend/src/wallet_ai/infrastructure/providers/fake/llm.py`
 - [x] T040 [US2] /recipients GET en `backend/src/wallet_ai/interfaces/api/routers/recipients.py` — `GET /recipients?q=` (mínimo 3 caracteres, máximo 5 resultados, solo rol cliente, `X-Trace-Id` en toda respuesta, 400/401/403); devuelve handle + nombre enmascarado, sin correo ni ids de usuario/cuenta
 - [x] T041 [US2] Drafts + /drafts/{id}/confirm (separado) en `backend/src/wallet_ai/interfaces/api/routers/drafts.py` — GET /drafts, GET /drafts/{id}, POST /drafts/{id}/reject y POST /drafts/{id}/confirm (solo rol cliente, `X-Trace-Id`, montos como string decimal, 404/409, confirmación idempotente). `POST /drafts` (creación con handle) se añade en B1: body `{recipient_id: handle, amount: string decimal}`, crea el borrador pendiente en una transacción junto con la auditoría, no publica ids de cuenta y no toca el ledger
 - [x] T042 [US2] MCP tools (get_balance,list_transactions,find_recipient,draft_transfer) en `backend/src/wallet_ai/application/assistant/tools/`
-- [ ] T043 [US2] Chat SSE (X-Trace-Id header + primer evento) en `backend/src/wallet_ai/interfaces/api/routers/chat.py`
+- [x] T043 [US2] Chat SSE (X-Trace-Id header + primer evento) en `backend/src/wallet_ai/interfaces/api/routers/chat.py`
 - [ ] T044 [US2] Hacer pasar tests US2
 
 ---
