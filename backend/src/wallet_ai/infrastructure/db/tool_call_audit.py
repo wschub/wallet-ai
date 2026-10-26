@@ -37,14 +37,24 @@ class ConnectionToolCallAuditor:
             user_id,
         )
 
-    async def record_tool_call(
-        self, *, trace_id: str, user_id: UUID, payload: dict[str, Any]
+    async def record_event(
+        self, *, trace_id: str, user_id: UUID, event_type: str, payload: dict[str, Any]
     ) -> None:
+        """Evento de auditoria generico del turno (llm_call, guardrail_block,
+        response). Garantiza la fila de `interactions` antes de insertar."""
         await self.ensure_interaction(trace_id=trace_id, user_id=user_id)
         await self._conn.execute(
             "INSERT INTO audit_events (id, trace_id, user_id, event_type, payload) "
-            "VALUES (gen_random_uuid(), $1, $2, 'tool_call', $3::jsonb)",
+            "VALUES (gen_random_uuid(), $1, $2, $3, $4::jsonb)",
             trace_id,
             user_id,
+            event_type,
             json.dumps(self._mask(payload), ensure_ascii=False),
+        )
+
+    async def record_tool_call(
+        self, *, trace_id: str, user_id: UUID, payload: dict[str, Any]
+    ) -> None:
+        await self.record_event(
+            trace_id=trace_id, user_id=user_id, event_type="tool_call", payload=payload
         )

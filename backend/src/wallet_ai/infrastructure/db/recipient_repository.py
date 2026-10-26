@@ -106,3 +106,15 @@ class RecipientRepository:
             requester_user_id,
         )
         return _row_to_handle(row) if row else None
+
+    async def display_name_for_account(self, account_id: UUID) -> str | None:
+        """Nombre publico del dueno de una cuenta (para enmascararlo luego).
+
+        Lo usa `draft_transfer` para devolver el nombre enmascarado del
+        destinatario sin exponer correos ni ids.
+        """
+        return await self._conn.fetchval(
+            "SELECT u.display_name FROM users u "
+            "JOIN accounts a ON a.user_id = u.id WHERE a.id = $1",
+            account_id,
+        )
