@@ -25,6 +25,7 @@ from wallet_ai.application.assistant.tools.registry import Tool, ToolDeps, ToolR
 from wallet_ai.application.recipients.create_draft_from_handle import create_draft_from_handle
 from wallet_ai.application.recipients.search_recipients import search_recipients
 from wallet_ai.domain.accounts.errors import AccountNotFound
+from wallet_ai.domain.recipients.masking import mask_display_name
 
 READ_ROLES = ("cliente", "soporte", "compliance")
 CLIENT_ROLES = ("cliente",)
@@ -122,11 +123,15 @@ async def _draft_transfer(ctx: ToolContext, args: DraftTransferArgs, deps: ToolD
         amount=Decimal(args.amount),
         trace_id=ctx.trace_id,
     )
+    # nombre enmascarado del destinatario: el orquestador construye el
+    # evento `draft` SOLO a partir de este resultado
+    display_name = await deps.recipients.display_name_for_account(draft.to_account_id)
     # sin ids de cuenta/usuario en la salida; el monto como string
     return {
         "draft_id": str(draft.id),
         "status": draft.status,
         "amount": f"{draft.amount:.2f}",
+        "recipient_name_masked": mask_display_name(display_name),
         "expires_at": draft.expires_at.isoformat(),
     }
 
