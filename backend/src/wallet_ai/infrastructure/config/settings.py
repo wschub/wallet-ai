@@ -17,6 +17,7 @@ class Settings(BaseSettings):
     LLM_MODEL: str = "fake"
     EMBEDDING_PROVIDER: str = "fake"
     EMBEDDING_MODEL: str = "fake"
+    EMBEDDING_VERSION: str = "0.1.0"
     RERANKER_PROVIDER: str = "fake"
     DATABASE_URL: str = "postgresql+asyncpg://localhost:5432/wallet"
     AUTH_JWT_SECRET: str = "dev-secret"
