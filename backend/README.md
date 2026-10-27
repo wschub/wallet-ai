@@ -28,6 +28,28 @@ Se usan dos bases para evitar mezclar datos:
 `DATABASE_URL` must point to the **owner** role: it is used by migrations, the seed and the integration tests. 
 `wallet_app` is a NOLOGIN group role with least privilege (INSERT/SELECT on `audit_events`). Running the API with a restricted login role (`CREATE ROLE ... LOGIN IN ROLE wallet_app`) requires a separate runtime URL, which is planned and not implemented yet.
 
+### Indice RAG (tramo A de US3)
+
+`index_builds`, `documents` y `chunks` (migracion `20261024_0009`) son append-only:
+UPDATE/DELETE/TRUNCATE estan bloqueados por triggers con mensaje estable
+'append-only' y `chunks.access_level` debe coincidir con el del documento
+(trigger BEFORE INSERT). La ingesta del corpus de politicas corre solo en
+dev:
+
+```bash
+cd backend
+export DATABASE_URL=postgresql+asyncpg://$(whoami)@localhost:5433/wallet_ai_dev
+APP_ENV=dev uv run python scripts/ingest.py --strategy fijo --size 800 --overlap 120 --name mi-build
+```
+
+Re-ejecutar con el mismo `--name` y el mismo corpus no duplica (idempotente);
+si el corpus cambio sin subir `version` en el front matter o si cambian los
+parametros, la ingesta falla pidiendo otro nombre. `wallet_app` tiene SOLO
+SELECT en las tres tablas (el asistente solo lee); el INSERT esta en el rol
+`wallet_ingest` (NOLOGIN), pensado para un login restringido de ingesta. En
+dev el script corre como owner de la base; los tests verifican con
+`SET ROLE wallet_app` que el rol de la app no puede escribir.
+The corpus is fully synthetic. It deliberately includes adversarial fixtures: a policy containing an injected instruction and a document with synthetic PII, used to test access control, masking and prompt-injection resistance.
 **Seed:** `scripts/seed.py` only runs when `APP_ENV=dev`. Demo passwords are defined in a constant marked **ONLY FOR DEMONSTRATION - DO NOT USE IN PRODUCTION** (`DEMO_PASSWORD`) and must never be used outside local/dev environments.
 
 ## Security model
