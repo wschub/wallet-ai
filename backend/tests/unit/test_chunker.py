@@ -334,6 +334,20 @@ def test_structural_short_preamble_merges_with_h1_section():
     assert chunks[1].startswith("## Seccion")
 
 
+def test_structural_long_preamble_joins_h1_section_keeping_title_first():
+    """El preambulo se une SIEMPRE a la seccion del titulo H1 (no solo
+    cuando es corto): aunque alcance `min_size`, no forma un fragmento
+    propio que dejaria el titulo fuera del primer fragmento."""
+    preamble = _para(200, 47)  # >= min_size (120)
+    h1_section = "# Titulo del documento\n\n" + _para(150, 48)
+    text = preamble + "\n\n" + h1_section + "\n\n## Seccion\n\n" + _para(200, 49)
+    chunks = StructuralChunker(600, 0).chunk(text)
+    assert chunks[0].startswith(preamble)
+    assert "# Titulo del documento" in chunks[0], "el titulo debe seguir en el primer fragmento"
+    assert all(len(c) <= 600 for c in chunks)
+    assert " ".join(chunks).split() == text.split()
+
+
 def test_structural_last_short_section_merges_with_previous():
     """La ultima seccion corta (sin siguiente) se une a la ANTERIOR."""
     text = "# Politica\n\n" + _para(200, 5) + "\n\n## Cierre\n\nNota final breve."

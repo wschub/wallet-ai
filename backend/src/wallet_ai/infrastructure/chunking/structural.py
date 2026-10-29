@@ -9,10 +9,11 @@ Version 2 (`CHUNKER_VERSION = "2"`), con umbral `min_size` (por defecto
 
 - Las secciones de menos de `min_size` caracteres se unen a la SIGUIENTE;
   si la union sigue corta, sigue acumulando secciones siguientes. El
-  preambulo (con el titulo H1) es una seccion mas: si es corto se une a
-  la seccion del titulo. La ULTIMA seccion corta, sin siguiente, se une
-  a la anterior. Asi ningun fragmento queda por debajo del umbral, salvo
-  que el documento completo sea mas corto.
+  preambulo (texto previo al primer encabezado) se une SIEMPRE a la
+  seccion del titulo H1, sea corto o no: el titulo viaja en el primer
+  fragmento. La ULTIMA seccion corta, sin siguiente, se une a la
+  anterior. Asi ningun fragmento queda por debajo del umbral, salvo que
+  el documento completo sea mas corto.
 - `min_size=0` desactiva la union (comportamiento de la version 1).
 
 El maximo NUNCA se rompe por la union: cada unidad (seccion o union de
@@ -70,9 +71,12 @@ class StructuralChunker:
 
     def _merged_units(self, sections: list[str]) -> list[str]:
         """Une las secciones cortas (< min_size) a la SIGUIENTE; la ultima
-        corta, sin siguiente, se une a la ANTERIOR."""
+        corta, sin siguiente, se une a la ANTERIOR. El preambulo (si lo hay)
+        se une SIEMPRE a la seccion del titulo H1."""
         if self.min_size == 0:
             return sections
+        if len(sections) >= 2 and not _HEADER_RE.match(sections[0]):
+            sections = [f"{sections[0]}\n\n{sections[1]}", *sections[2:]]
         units: list[str] = []
         acc: str | None = None
         for section in sections:
