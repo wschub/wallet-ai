@@ -228,6 +228,27 @@ class RecordingAuditor:
         )
 
 
+class RecordingDocumentRepository:
+    """Delega en el `DocumentRepository` real y registra el limite pedido a
+    cada pata. Sirve para comprobar que la fusion usa el MISMO candidate_pool
+    en ambas patas sin depender del tamano que devuelva el corpus."""
+
+    def __init__(self, inner: DocumentRepository) -> None:
+        self._inner = inner
+        self.search_limits: list[tuple[str, int]] = []
+
+    async def get_build(self, name: str) -> IndexBuild | None:
+        return await self._inner.get_build(name)
+
+    async def lexical_search(self, **kwargs):
+        self.search_limits.append(("lexical", kwargs["limit"]))
+        return await self._inner.lexical_search(**kwargs)
+
+    async def vector_search(self, **kwargs):
+        self.search_limits.append(("vector", kwargs["limit"]))
+        return await self._inner.vector_search(**kwargs)
+
+
 class RecordingRepo:
     """Repositorio simulado con registro de llamadas.
 
@@ -286,6 +307,42 @@ def _row(chunk_id, access_level: str, *, text: str = "Texto generico del fragmen
         access_level=access_level,
         score=0.5,
     )
+
+
+def _walk_strings(value):
+    """Todas las cadenas de una estructura JSON (claves y valores)."""
+    if isinstance(value, str):
+        yield value
+    elif isinstance(value, dict):
+        for key, item in value.items():
+            yield from _walk_strings(key)
+            yield from _walk_strings(item)
+    elif isinstance(value, (list, tuple)):
+        for item in value:
+            yield from _walk_strings(item)
+
+
+def assert_no_chunk_text(payload: dict, hits) -> None:
+    """El payload no puede contener el texto de ningun fragmento.
+
+    Compara contra las cadenas YA DESERIALIZADAS (no contra el JSON
+    serializado): en JSON los saltos de linea van escapados como `\\n`, de
+    modo que un fragmento multilinea nunca seria substring del texto
+    serializado y una fuga de `chunk_texts` pasaria inadvertida.
+    """
+    strings = list(_walk_strings(payload))
+    for hit in hits:
+        for value in strings:
+            assert hit.text not in value, (
+                "el evento de auditoria no debe llevar texto de chunks"
+            )
+        fragment = " ".join(hit.text.split())[:80]
+        if fragment:
+            for value in strings:
+                assert fragment not in " ".join(value.split()), (
+                    "el evento de auditoria no debe llevar texto de chunks "
+                    "(ni normalizado)"
+                )
 
 
 # ---------------------------------------------------------------------------
@@ -515,47 +572,90 @@ async def test_vector_mode_finds_related_text_with_fake_embeddings(pool):
 @pytest.mark.integration
 @pytest.mark.asyncio
 async def test_hybrid_mode_fuses_both_legs_coherently(pool):
-    """Hibrido: cada hit del top-3 proviene del top-5 de alguna pata, el
-    score RRF es exactamente la suma de sus aportes por pata y el orden es
-    el de RRF con desempate por chunk_id. Los documentos que encabezan cada
-    pata (limites y niveles) son los que encabezan la fusion.
+    """Hibrido: la fusion consume las DOS patas con el mismo candidate_pool,
+    no inventa candidatos, el rrf_score de cada hit es EXACTAMENTE la suma de
+    `1/(rrf_k + rango)` sobre las patas donde aparece (recomputada aqui) y el
+    orden es por score descendente con desempate por chunk_id.
 
-    El top-3 de una pata NO es suficiente: RRF premia aparecer en AMBAS
-    patas, de modo que un hit con ranks (4, 19) supera legitimamente a uno
-    con (2, 34). La coherencia exigida es que la fusion se nutre de las
-    patas, no que replique sus podiums exactos."""
+    No se exige que el top-k hibrido sea un subconjunto del top-k de una
+    pata: RRF premia aparecer en AMBAS patas, de modo que un chunk con rangos
+    (4, 19) supera legitimamente a uno con (2, 34). Lo que SI es invariante
+    de RRF es que la fusion se nutre de los candidatos de las patas, que sus
+    scores son la suma de sus aportes y que su orden es el de esa suma.
+    """
     query = "el limite diario de las transferencias de la cuenta"
     for build in BUILDS:
-        leg_lex = await retrieve(_ctx(pool), query, _config(build=build, mode="lexical", top_k=5))
-        leg_vec = await retrieve(_ctx(pool), query, _config(build=build, mode="vector", top_k=5))
-        hits = await retrieve(_ctx(pool), query, _config(build=build, mode="hybrid"))
+        pool_size = 50
+        hybrid_config = _config(
+            build=build, mode="hybrid", top_k=3, pool_size=pool_size
+        )
 
-        assert len(hits) == 3
-        union = {hit.chunk_id for hit in leg_lex} | {hit.chunk_id for hit in leg_vec}
+        # (a) el hibrido pide AMBAS patas con su mismo candidate_pool.
+        recording = RecordingDocumentRepository(DocumentRepository(pool))
+        hits = await retrieve(_ctx(pool, repo=recording), query, hybrid_config)
+        assert sorted(recording.search_limits) == [
+            ("lexical", pool_size),
+            ("vector", pool_size),
+        ], (
+            f"build={build}: el hibrido debe recuperar las dos patas con "
+            f"candidate_pool={pool_size}, llego {recording.search_limits}"
+        )
+
+        # Los candidatos de cada pata son los que el hibrido fusiono: misma
+        # build, misma consulta y el mismo limite (top_k = candidate_pool).
+        leg_config = _config(
+            build=build, mode="lexical", top_k=pool_size, pool_size=pool_size
+        )
+        leg_lex = await retrieve(_ctx(pool), query, leg_config)
+        leg_vec = await retrieve(
+            _ctx(pool),
+            query,
+            _config(build=build, mode="vector", top_k=pool_size, pool_size=pool_size),
+        )
+        assert leg_lex and leg_vec, f"build={build}: ambas patas deben aportar candidatos"
+
+        lex_ranks = {hit.chunk_id: rank for rank, hit in enumerate(leg_lex, start=1)}
+        vec_ranks = {hit.chunk_id: rank for rank, hit in enumerate(leg_vec, start=1)}
+        union = set(lex_ranks) | set(vec_ranks)
+
+        # (b) todo hit hibrido pertenece a la union de candidatos de las patas.
         for hit in hits:
             assert hit.chunk_id in union, (
-                f"build={build}: el hit hibrido {hit.chunk_id} no esta en el top-5 "
-                "de ninguna pata: la fusion no es coherente con las patas"
+                f"build={build}: el hit hibrido {hit.chunk_id} no esta en los "
+                "candidatos de ninguna pata: la fusion invento un candidato"
             )
 
-        assert {hit.document_id for hit in hits} == {LIM_DOC_ID, NIVEL_DOC_ID}
-
+        # (c) rrf_score == suma de 1/(rrf_k + rango) sobre las patas donde
+        # aparece, recomputada con los rangos reales de cada pata.
+        expected_scores = {
+            chunk_id: sum(
+                1.0 / (hybrid_config.rrf_k + ranks[chunk_id])
+                for ranks in (lex_ranks, vec_ranks)
+                if chunk_id in ranks
+            )
+            for chunk_id in union
+        }
         for hit in hits:
-            expected = 0.0
-            if hit.lexical_rank is not None:
-                expected += 1.0 / (60 + hit.lexical_rank)
-            if hit.vector_rank is not None:
-                expected += 1.0 / (60 + hit.vector_rank)
-            assert hit.rrf_score == pytest.approx(expected), (
+            assert hit.lexical_rank == lex_ranks.get(hit.chunk_id)
+            assert hit.vector_rank == vec_ranks.get(hit.chunk_id)
+            assert hit.rrf_score == pytest.approx(expected_scores[hit.chunk_id]), (
                 f"build={build}: el rrf_score de {hit.chunk_id} debe ser la suma "
-                f"de sus aportes por pata ({expected})"
+                f"de sus aportes por pata ({expected_scores[hit.chunk_id]})"
             )
 
-        by_score = sorted(hits, key=lambda h: (-h.rrf_score, h.chunk_id))
-        assert [h.chunk_id for h in hits] == [h.chunk_id for h in by_score], (
+        # (d) el orden es score descendente con desempate por chunk_id; el
+        # top-k es el prefijo de esa fusion completa.
+        expected_order = [
+            chunk_id
+            for chunk_id, _score in sorted(
+                expected_scores.items(), key=lambda kv: (-kv[1], kv[0])
+            )
+        ]
+        assert [hit.chunk_id for hit in hits] == expected_order[: hybrid_config.top_k], (
             f"build={build}: el orden debe ser por rrf_score descendente con "
-            "desempate estable por chunk_id"
+            "desempate por chunk_id"
         )
+        assert {hit.document_id for hit in hits} == {LIM_DOC_ID, NIVEL_DOC_ID}
 
 
 # ---------------------------------------------------------------------------
@@ -667,6 +767,7 @@ async def test_retrieval_audit_event_masks_query_and_has_no_chunk_text(pool):
         fragment = hit.text[20:80].strip()
         if fragment:
             assert fragment not in serialized
+    assert_no_chunk_text(payload, hits)
 
 
 @pytest.mark.integration
@@ -714,6 +815,7 @@ async def test_retrieval_event_persisted_in_audit_events(pool, audit_user_id):
     serialized = json.dumps(payload, default=str)
     for hit in hits:
         assert hit.text not in serialized
+    assert_no_chunk_text(payload, hits)
 
 
 # ---------------------------------------------------------------------------
@@ -793,3 +895,31 @@ async def test_rerank_with_fake_reranker_over_candidate_pool(pool):
         again = await retrieve(_ctx(pool, "cliente", reranker=FakeReranker()), "Bronce",
                                _config(build=build, mode="hybrid", rerank=True))
         assert [hit.chunk_id for hit in hits] == [hit.chunk_id for hit in again]
+
+
+@pytest.mark.integration
+@pytest.mark.asyncio
+async def test_acl_filter_runs_before_the_limit(pool):
+    """El filtro ACL va en el WHERE, ANTES de ORDER BY y LIMIT.
+
+    Con un pool diminuto (top_k = candidate_pool = 3), las consultas
+    literales de los internos llenan el top-3 permitido SOLO si los
+    fragmentos prohibidos no consumen puestos del LIMIT. Si el filtro se
+    aplicara despues del LIMIT, el interno (que encabeza el ranking de su
+    propia consulta) desplazaria a un fragmento permitido y quedarian
+    menos de 3 hits.
+    """
+    for build in BUILDS:
+        for mode in MODES:
+            for doc_id, query in ACL_QUERIES:
+                hits = await retrieve(
+                    _ctx(pool, "cliente"),
+                    query,
+                    _config(build=build, mode=mode, top_k=3, pool_size=3),
+                )
+                assert len(hits) == 3, (
+                    f"build={build} mode={mode} doc={doc_id}: el filtro ACL "
+                    f"debe ir antes del LIMIT; llegaron {len(hits)} hits permitidos"
+                )
+                assert {hit.access_level for hit in hits} <= {"publico", "cliente"}
+                assert not ({hit.document_id for hit in hits} & INTERNAL_DOC_IDS)
