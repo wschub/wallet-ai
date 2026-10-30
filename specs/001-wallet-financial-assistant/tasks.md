@@ -114,7 +114,7 @@
 - [x] T050 [US3] DocumentRepository con prefilter ACL en `backend/src/wallet_ai/infrastructure/db/document_repository.py`
 - [x] T051 [US3] Hybrid retrieval: búsqueda exacta con filtro ACL (preferido); iterative_scan documentado en `backend/src/wallet_ai/application/rag/hybrid_retriever.py` (RRF k=60)
 - [ ] T052 [US3] Reranker puerto (fake + opcional local) en `backend/src/wallet_ai/application/rag/reranker.py` — puerto Reranker y fake cableados en retrieval.py; adaptador local pendiente (tramo C) — puerto Reranker y fake cableados en retrieval.py; adaptador local pendiente (tramo C)
-- [ ] T053 [US3] RAG service con citas en `backend/src/wallet_ai/application/rag/rag_service.py` — pendiente (tramo C) — pendiente (tramo C)
+- [ ] T053 [US3] RAG service con citas en `backend/src/wallet_ai/application/rag/rag_service.py` — pendiente (tramo C)
 - [ ] T054 [US3] Hacer pasar tests US3
 
 ---
