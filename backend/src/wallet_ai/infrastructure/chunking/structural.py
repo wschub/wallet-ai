@@ -44,6 +44,10 @@ class StructuralChunker:
     # segmentacion exija otro nombre de build (IngestConflictError).
     CHUNKER_VERSION = "2"
 
+    @property
+    def chunker_version(self) -> str:
+        return self.CHUNKER_VERSION
+
     def __init__(self, size: int, overlap: int, min_size: int = 120) -> None:
         if size <= 0:
             raise ValueError("size debe ser > 0")

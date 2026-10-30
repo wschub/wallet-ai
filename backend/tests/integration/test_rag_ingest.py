@@ -23,8 +23,11 @@ trigger propio.
 
 from __future__ import annotations
 
+import asyncio
 import json
 import os
+import subprocess
+import sys
 import uuid
 from pathlib import Path
 
@@ -34,7 +37,7 @@ import pytest
 from wallet_ai.application.rag.errors import IngestConflictError
 from wallet_ai.application.rag.ingest import IngestService
 from wallet_ai.domain.documents.documents import document_uuid
-from wallet_ai.infrastructure.chunking import build_chunker
+from wallet_ai.infrastructure.chunking import build_chunker, chunk_params_for
 from wallet_ai.infrastructure.db.rag_ingest_repository import RagIngestRepository
 from wallet_ai.infrastructure.pii.masker import PIIMasker
 from wallet_ai.infrastructure.providers.fake.embeddings import FakeEmbeddings
@@ -503,3 +506,100 @@ async def test_build_stores_embedding_model_version_and_dimension(pool):
     assert row["dimension"] == 64
     assert vector_dims == 64
     assert result.dimension == 64
+
+
+# ---------------------------------------------------------------------------
+# Identidad de la build: version del segmentador y min_size
+# ---------------------------------------------------------------------------
+
+
+def test_chunk_params_for_fixed_records_own_version_without_min_size():
+    """La build fija registra la version de su segmentador; `min_size` solo
+    aplica al estructural y no se inventa un valor para la fija."""
+    chunker = build_chunker("fijo", 600, 100)
+    params = chunk_params_for("fijo", 600, 100, 120, chunker)
+    assert params == {"size": 600, "overlap": 100, "chunker_version": "1"}
+
+
+@pytest.mark.integration
+def test_ingest_script_records_chunker_version_and_min_size():
+    """Una build creada por `scripts/ingest.py` registra en chunk_params la
+    version del segmentador y el min_size con el que se construyo."""
+    from wallet_ai.infrastructure.config.settings import Settings
+
+    name = f"test-script-estructural-{uuid.uuid4().hex[:10]}"
+    backend_dir = Path(__file__).resolve().parents[2]
+    env = {**os.environ, "APP_ENV": "dev"}
+    completed = subprocess.run(
+        [
+            sys.executable,
+            "-m",
+            "scripts.ingest",
+            "--strategy",
+            "estructural",
+            "--size",
+            "600",
+            "--min-size",
+            "90",
+            "--name",
+            name,
+        ],
+        cwd=backend_dir,
+        env=env,
+        capture_output=True,
+        text=True,
+    )
+    assert completed.returncode == 0, completed.stderr
+
+    async def _read_build():
+        conn = await asyncpg.connect(Settings().asyncpg_dsn)
+        try:
+            return await conn.fetchrow(
+                "SELECT chunking_strategy, chunk_params FROM index_builds WHERE name = $1",
+                name,
+            )
+        finally:
+            await conn.close()
+
+    row = asyncio.run(_read_build())
+    assert row is not None, "el script debio crear la build"
+    assert row["chunking_strategy"] == "estructural"
+    params = json.loads(row["chunk_params"])
+    assert params["chunker_version"] == "2"
+    assert params["min_size"] == 90
+
+
+@pytest.mark.integration
+@pytest.mark.asyncio
+async def test_same_build_with_different_min_size_conflicts(pool):
+    """Reutilizar el nombre de una build con otro min_size NO se silencia:
+    la configuracion de segmentacion es parte de la identidad de la build."""
+    import tempfile
+
+    name = f"test-min-size-{uuid.uuid4().hex[:10]}"
+
+    def service(min_size: int) -> IngestService:
+        chunker = build_chunker("estructural", 600, 100, min_size=min_size)
+        return IngestService(
+            repo=RagIngestRepository(pool),
+            embeddings=FakeEmbeddings(dim=64),
+            pii=PIIMasker(),
+            chunker=chunker,
+            strategy="estructural",
+            chunk_params=chunk_params_for("estructural", 600, 100, min_size, chunker),
+            build_name=name,
+            embedding_provider="fake",
+            embedding_model="fake-test-model",
+            embedding_version="1.2.3",
+        )
+
+    with tempfile.TemporaryDirectory() as td:
+        directory = Path(td)
+        _write_doc(
+            directory,
+            "doc-min-size",
+            body="Politica de prueba con secciones para el umbral. " * 10,
+        )
+        await service(120).ingest(directory)
+        with pytest.raises(IngestConflictError, match="min_size"):
+            await service(80).ingest(directory)

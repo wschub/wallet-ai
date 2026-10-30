@@ -556,6 +556,31 @@ def test_build_chunker_factory():
         build_chunker("por-oraciones", 100, 20)
 
 
+def test_chunkers_expose_chunker_version():
+    """TO-DO: cada segmentador expone la version de su algoritmo; la build la
+    registra para que dos segmentaciones distintas no compartan nombre."""
+    fixed = FixedSizeChunker(100, 20)
+    structural = StructuralChunker(100, 20)
+    assert fixed.chunker_version == FixedSizeChunker.CHUNKER_VERSION
+    assert structural.chunker_version == StructuralChunker.CHUNKER_VERSION
+    assert fixed.chunker_version != structural.chunker_version
+    assert structural.chunker_version == "2"
+
+
+def test_build_chunker_accepts_min_size_for_structural():
+    """La fabrica propaga `min_size` al estructural (default 120). Para el
+    fijo el parametro no aplica: se acepta y se ignora."""
+    default = build_chunker("estructural", 100, 20)
+    assert isinstance(default, StructuralChunker)
+    assert default.min_size == 120
+
+    custom = build_chunker("estructural", 100, 20, min_size=80)
+    assert isinstance(custom, StructuralChunker)
+    assert custom.min_size == 80
+
+    assert isinstance(build_chunker("fijo", 100, 20, min_size=80), FixedSizeChunker)
+
+
 @pytest.mark.parametrize("cls", [FixedSizeChunker, StructuralChunker])
 def test_invalid_parameters_rejected(cls):
     with pytest.raises(ValueError):

@@ -25,6 +25,16 @@ FENCE = "```"
 
 
 class FixedSizeChunker:
+    # Version del algoritmo: todas las builds registran la version de su
+    # segmentador en `chunk_params`, de modo que cambiar la segmentacion
+    # exija otro nombre de build (IngestConflictError) y el informe de
+    # comparacion pueda distinguir dos builds.
+    CHUNKER_VERSION = "1"
+
+    @property
+    def chunker_version(self) -> str:
+        return self.CHUNKER_VERSION
+
     def __init__(self, size: int, overlap: int) -> None:
         if size <= 0:
             raise ValueError("size debe ser > 0")
