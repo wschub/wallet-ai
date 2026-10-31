@@ -73,7 +73,3 @@ issue_token(ttl) debe ser igual a 60 minutos
 ### Retrieval and access control
 
 Retrieval is hybrid: Spanish full-text search and exact vector search, fused with Reciprocal Rank Fusion, with optional reranking. The role-to-level mapping lives in one read-only place and fails closed: an unknown role retrieves nothing. The access filter is applied inside both SQL queries, before ordering and limiting, and verified again after retrieval: a candidate above the caller's level aborts the request and is audited. Queries are PII-masked before embedding and auditing, and the audit event stores ids and levels, never chunk text.
-
-### Retrieval and access control
-
-Retrieval is hybrid: Spanish full-text search and exact vector search, fused with Reciprocal Rank Fusion, with optional reranking. The role-to-level mapping lives in one read-only place and fails closed: an unknown role retrieves nothing. The access filter is applied inside both SQL queries, before ordering and limiting, and verified again after retrieval: a candidate above the caller's level aborts the request and is audited. Queries are PII-masked before embedding and auditing, and the audit event stores ids and levels, never chunk text.
