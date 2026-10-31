@@ -7,8 +7,15 @@ import unicodedata
 
 
 class FakeEmbeddings:
-    def __init__(self, dim: int = 128) -> None:
+    def __init__(
+        self,
+        dim: int = 128,
+        model_name: str = "fake",
+        model_version: str = "0.1.0",
+    ) -> None:
         self.dim = dim
+        self.model_name = model_name
+        self.model_version = model_version
 
     def _tokenize(self, text: str) -> list[str]:
         text = unicodedata.normalize("NFKD", text)

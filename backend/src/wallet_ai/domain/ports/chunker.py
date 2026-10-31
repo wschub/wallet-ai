@@ -13,4 +13,8 @@ from typing import Protocol
 
 
 class Chunker(Protocol):
+    # Version del algoritmo de segmentacion. Toda build la registra en
+    # `chunk_params` (las estructurales, tambien `min_size`).
+    chunker_version: str
+
     def chunk(self, text: str) -> list[str]: ...
