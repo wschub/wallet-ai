@@ -36,7 +36,8 @@ unicamente SELECT sobre estas tablas).
 from __future__ import annotations
 
 import json
-from collections.abc import Sequence
+from collections.abc import AsyncIterator, Sequence
+from contextlib import asynccontextmanager
 from uuid import UUID
 
 import asyncpg
@@ -80,11 +81,21 @@ WHERE name = $1
 class DocumentRepository:
     """Lectura del indice con prefiltro ACL (T050)."""
 
-    def __init__(self, pool: asyncpg.Pool) -> None:
+    def __init__(self, pool: asyncpg.Pool | asyncpg.Connection) -> None:
+        # acepta un pool (tests, uso general) o una conexion ya abierta
+        # (el router de chat abre una conexion por turno)
         self._pool = pool
 
+    @asynccontextmanager
+    async def _connection(self) -> AsyncIterator[asyncpg.Connection]:
+        if isinstance(self._pool, asyncpg.Connection):
+            yield self._pool
+        else:
+            async with self._pool.acquire() as conn:
+                yield conn
+
     async def get_build(self, name: str) -> IndexBuild | None:
-        async with self._pool.acquire() as conn:
+        async with self._connection() as conn:
             row = await conn.fetchrow(_BUILD_SQL, name)
         if row is None:
             return None
@@ -98,7 +109,7 @@ class DocumentRepository:
         query: str,
         limit: int,
     ) -> list[ScoredChunk]:
-        async with self._pool.acquire() as conn:
+        async with self._connection() as conn:
             rows = await conn.fetch(
                 _LEXICAL_SQL, build_id, list(allowed_levels), query, limit
             )
@@ -112,7 +123,7 @@ class DocumentRepository:
         embedding: Sequence[float],
         limit: int,
     ) -> list[ScoredChunk]:
-        async with self._pool.acquire() as conn:
+        async with self._connection() as conn:
             await register_vector(conn)
             rows = await conn.fetch(
                 _VECTOR_SQL, build_id, list(allowed_levels), list(embedding), limit
