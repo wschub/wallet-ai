@@ -15,7 +15,6 @@ dependencies = [
     "httpx>=0.28.1",
     "mcp[cli]>=1.15.0",
     "pgvector>=0.4.1",
-    "psycopg2-binary>=2.9.13",
     "pydantic>=2.12.1",
     "pydantic-settings>=2.16.1",
     "pyjwt>=2.10.1",
