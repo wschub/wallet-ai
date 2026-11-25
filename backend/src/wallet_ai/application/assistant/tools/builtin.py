@@ -22,6 +22,7 @@ from pydantic import BaseModel, ConfigDict, Field, field_validator
 from wallet_ai.application.accounts.service import get_balance, list_transactions
 from wallet_ai.application.assistant.tools.context import ToolContext
 from wallet_ai.application.assistant.tools.registry import Tool, ToolDeps, ToolRegistry
+from wallet_ai.application.rag.policy_search import search_policies as search_policies_uc
 from wallet_ai.application.recipients.create_draft_from_handle import create_draft_from_handle
 from wallet_ai.application.recipients.search_recipients import search_recipients
 from wallet_ai.domain.accounts.errors import AccountNotFound
@@ -69,9 +70,16 @@ class DraftTransferArgs(BaseModel):
         return value
 
 
+class SearchPoliciesArgs(BaseModel):
+    model_config = ConfigDict(extra="forbid")
+    query: str = Field(min_length=1)
+
+
 # --------------------------------------------------------------------------
 # funciones
 # --------------------------------------------------------------------------
+
+
 
 
 async def _get_balance(ctx: ToolContext, args: GetBalanceArgs, deps: ToolDeps) -> dict:
@@ -136,8 +144,27 @@ async def _draft_transfer(ctx: ToolContext, args: DraftTransferArgs, deps: ToolD
     }
 
 
+
+async def _search_policies(ctx: ToolContext, args: SearchPoliciesArgs, deps: ToolDeps) -> dict:
+    rag = (deps.extras or {}).get("rag") or {}
+    from wallet_ai.application.rag.retrieval import RetrievalContext
+    rctx = RetrievalContext(
+        trace_id=ctx.trace_id,
+        user_id=ctx.user_id,
+        role=ctx.role,
+        repo=rag["repo"],
+        embeddings=rag["embeddings"],
+        pii=rag["pii"],
+        auditor=deps.auditor,
+        reranker=rag.get("reranker"),
+    )
+    config = rag.get("config")
+    passages = await search_policies_uc(rctx, args.query, config)
+    return {"passages": passages}
+
+
 # --------------------------------------------------------------------------
-# registro por defecto: exactamente estas cuatro
+# registro por defecto: cinco herramientas
 # --------------------------------------------------------------------------
 
 TOOLS: tuple[Tool, ...] = (
@@ -182,6 +209,18 @@ TOOLS: tuple[Tool, ...] = (
         args_model=DraftTransferArgs,
         roles=CLIENT_ROLES,
         fn=_draft_transfer,
+        read_only=False,
+    ),
+    Tool(
+        name="search_policies",
+        description=(
+            "Busca pasajes de politicas y documentacion accesibles al rol. "
+            "Solo lectura; devuelve hasta 5 pasajes enmascarados."
+        ),
+        args_model=SearchPoliciesArgs,
+        roles=READ_ROLES,
+        read_only=True,
+        fn=_search_policies,
     ),
 )
 

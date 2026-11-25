@@ -124,8 +124,15 @@ async def test_chat_heuristic_transfer_calls_find_recipient():
 
 @pytest.mark.asyncio
 async def test_chat_heuristic_abstains_explicitly():
+    """Contrato US3-C: sin herramienta asociada se busca en políticas; la
+    abstención solo ocurre cuando la búsqueda no devuelve pasajes."""
     llm = FakeLLM()
-    r = await llm.chat(_user("¿cuál es la capital de Francia?"))
+    question = "¿cuál es la capital de Francia?"
+    first = await llm.chat(_user(question))
+    assert first.tool_calls == (
+        ToolCallRequest(name="search_policies", arguments={"query": question}),
+    )
+    r = await llm.chat(_tool_envelope("search_policies", {"passages": []}))
     assert r.tool_calls == ()
     assert r.content == ABSTENTION_MESSAGE
 

@@ -129,11 +129,23 @@ def build_mcp_server(
         ctx = build_context_from_token(raw_token, clock)
         conn = await asyncpg.connect(Settings().asyncpg_dsn)
         try:
+            from wallet_ai.infrastructure.db.document_repository import DocumentRepository
+            from wallet_ai.infrastructure.pii.masker import PIIMasker
+            from wallet_ai.infrastructure.providers.fake.embeddings import FakeEmbeddings
             deps = ToolDeps(
                 accounts=AccountReadRepository(conn),
                 drafts=DraftRepository(conn),
                 recipients=RecipientRepository(conn),
                 auditor=ConnectionToolCallAuditor(conn),
+                extras={
+                    "rag": {
+                        "repo": DocumentRepository(conn),
+                        "embeddings": FakeEmbeddings(),
+                        "pii": PIIMasker(),
+                        "reranker": None,
+                        "config": None,
+                    }
+                },
             )
             return await reg.invoke(name, ctx, arguments, deps)
         finally:
@@ -167,11 +179,15 @@ def build_mcp_server(
     async def draft_transfer(recipient_id: str, amount: str) -> str:
         return await _call("draft_transfer", {"recipient_id": recipient_id, "amount": amount})
 
+    async def search_policies(query: str) -> str:
+        return await _call("search_policies", {"query": query})
+
     wrappers = {
         "get_balance": get_balance,
         "list_transactions": list_transactions,
         "find_recipient": find_recipient,
         "draft_transfer": draft_transfer,
+        "search_policies": search_policies,
     }
 
     server = MCPServer(

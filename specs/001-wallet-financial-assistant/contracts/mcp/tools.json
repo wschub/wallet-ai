@@ -3,8 +3,15 @@
     {
       "name": "get_balance",
       "description": "Obtiene el saldo derivado del ledger de la cuenta del usuario autenticado.",
-      "inputSchema": { "type": "object", "properties": {} },
-      "permissions": ["cliente", "soporte", "compliance"],
+      "inputSchema": {
+        "type": "object",
+        "properties": {}
+      },
+      "permissions": [
+        "cliente",
+        "soporte",
+        "compliance"
+      ],
       "readOnly": true
     },
     {
@@ -13,11 +20,22 @@
       "inputSchema": {
         "type": "object",
         "properties": {
-          "limit": { "type": "integer", "minimum": 1, "maximum": 100, "default": 20 },
-          "cursor": { "type": "string" }
+          "limit": {
+            "type": "integer",
+            "minimum": 1,
+            "maximum": 100,
+            "default": 20
+          },
+          "cursor": {
+            "type": "string"
+          }
         }
       },
-      "permissions": ["cliente", "soporte", "compliance"],
+      "permissions": [
+        "cliente",
+        "soporte",
+        "compliance"
+      ],
       "readOnly": true
     },
     {
@@ -25,31 +43,54 @@
       "description": "Busca destinatario. Devuelve recipient_id (handle opaco) ligado al usuario solicitante, name_masked y expires_at. Nunca devuelve IDs de cuenta. Vence en 15 min.",
       "inputSchema": {
         "type": "object",
-        "required": ["query"],
+        "required": [
+          "query"
+        ],
         "properties": {
-          "query": { "type": "string", "minLength": 3 }
+          "query": {
+            "type": "string",
+            "minLength": 3
+          }
         }
       },
       "outputSchema": {
         "type": "object",
-        "required": ["results"],
+        "required": [
+          "results"
+        ],
         "properties": {
           "results": {
             "type": "array",
             "items": {
               "type": "object",
-              "required": ["recipient_id", "name_masked", "expires_at"],
+              "required": [
+                "recipient_id",
+                "name_masked",
+                "expires_at"
+              ],
               "properties": {
-                "recipient_id": { "type": "string", "description": "Handle opaco (RecipientHandle)" },
-                "name_masked": { "type": "string" },
-                "expires_at": { "type": "string", "format": "date-time" }
+                "recipient_id": {
+                  "type": "string",
+                  "description": "Handle opaco (RecipientHandle)"
+                },
+                "name_masked": {
+                  "type": "string"
+                },
+                "expires_at": {
+                  "type": "string",
+                  "format": "date-time"
+                }
               }
             }
           },
-          "requires_disambiguation": { "type": "boolean" }
+          "requires_disambiguation": {
+            "type": "boolean"
+          }
         }
       },
-      "permissions": ["cliente"],
+      "permissions": [
+        "cliente"
+      ],
       "readOnly": true
     },
     {
@@ -57,15 +98,49 @@
       "description": "Prepara borrador con recipient_id (handle). NO ejecuta ni confirma. Expiración/propiedad validadas. Identidad usuario desde sesión.",
       "inputSchema": {
         "type": "object",
-        "required": ["recipient_id", "amount"],
+        "required": [
+          "recipient_id",
+          "amount"
+        ],
         "properties": {
-          "recipient_id": { "type": "string", "description": "Handle opaco emitido por find_recipient (RecipientHandle); nunca un ID de cuenta" },
-          "amount": { "type": "string", "description": "Monto como string decimal positivo (p.ej. '10.00'); nunca number", "pattern": "^\\d+\\.\\d{2}$" }
+          "recipient_id": {
+            "type": "string",
+            "description": "Handle opaco emitido por find_recipient (RecipientHandle); nunca un ID de cuenta"
+          },
+          "amount": {
+            "type": "string",
+            "description": "Monto como string decimal positivo (p.ej. '10.00'); nunca number",
+            "pattern": "^\\d+\\.\\d{2}$"
+          }
         }
       },
-      "permissions": ["cliente"],
+      "permissions": [
+        "cliente"
+      ],
       "readOnly": false,
       "executesMoneyMovement": false
+    },
+    {
+      "name": "search_policies",
+      "description": "Busca pasajes de politicas y documentacion accesibles al rol.",
+      "inputSchema": {
+        "type": "object",
+        "required": [
+          "query"
+        ],
+        "properties": {
+          "query": {
+            "type": "string",
+            "minLength": 1
+          }
+        }
+      },
+      "permissions": [
+        "cliente",
+        "soporte",
+        "compliance"
+      ],
+      "readOnly": true
     }
   ],
   "notes": [

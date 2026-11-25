@@ -30,7 +30,7 @@ from wallet_ai.infrastructure.config.settings import Settings
 from wallet_ai.interfaces.api.deps.auth import create_token
 from wallet_ai.interfaces.mcp.server import MCPIdentityError, build_mcp_server
 
-TOOL_NAMES = {"get_balance", "list_transactions", "find_recipient", "draft_transfer"}
+TOOL_NAMES = {"get_balance", "list_transactions", "find_recipient", "draft_transfer", "search_policies"}
 HEX32 = re.compile(r"[0-9a-f]{32}")
 
 
@@ -137,7 +137,7 @@ async def test_mcp_server_lists_exactly_the_four_tools(db_conn, monkeypatch):
             result = await session.list_tools()
 
     assert {t.name for t in result.tools} == TOOL_NAMES
-    assert len(result.tools) == 4
+    assert len(result.tools) == 5
 
 
 # --------------------------------------------------------------------------

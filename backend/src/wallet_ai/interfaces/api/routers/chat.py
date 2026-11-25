@@ -33,10 +33,12 @@ from wallet_ai.application.assistant.orchestrator import (
 from wallet_ai.application.assistant.tools import ToolContext, ToolDeps, build_default_registry
 from wallet_ai.infrastructure.config.settings import Settings
 from wallet_ai.infrastructure.db.account_read_repository import AccountReadRepository
+from wallet_ai.infrastructure.db.document_repository import DocumentRepository
 from wallet_ai.infrastructure.db.draft_repository import DraftRepository
 from wallet_ai.infrastructure.db.recipient_repository import RecipientRepository
 from wallet_ai.infrastructure.db.tool_call_audit import ConnectionToolCallAuditor
 from wallet_ai.infrastructure.pii.masker import PIIMasker
+from wallet_ai.infrastructure.providers.fake.embeddings import FakeEmbeddings
 from wallet_ai.infrastructure.providers.fake.llm import FakeLLM
 from wallet_ai.infrastructure.tracing.logger import StructuredLogger
 from wallet_ai.interfaces.api.deps.auth import get_current_user
@@ -90,6 +92,15 @@ async def chat_stream(
         drafts=DraftRepository(conn),
         recipients=RecipientRepository(conn),
         auditor=auditor,
+        extras={
+            "rag": {
+                "repo": DocumentRepository(conn),
+                "embeddings": FakeEmbeddings(),
+                "pii": pii,
+                "reranker": None,
+                "config": None,
+            }
+        },
     )
     turn = run_turn(
         ctx=ctx,

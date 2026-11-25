@@ -639,9 +639,49 @@ async def test_e4_draft_blocked_in_ambiguous_turn(db_conn):
 # --------------------------------------------------------------------------
 # (f) inyeccion en el mensaje
 # --------------------------------------------------------------------------
+# Build de nombre fijo propio de este modulo (no comparte nombre con los
+# builds de test_rag_acl.py, que usan otros parametros). Embeddings con la
+# misma configuracion que el router y la ingesta de demo (fake, dim 128,
+# 'fake'/'0.1.0'), para que la comprobacion de modelo de retrieve pase.
+RAG_TEST_BUILD = "test-assistant-fijo"
+
+
+@pytest.fixture
+async def rag_test_build(monkeypatch):
+    from pathlib import Path
+
+    from wallet_ai.application.rag.ingest import IngestService
+    from wallet_ai.infrastructure.chunking import build_chunker
+    from wallet_ai.infrastructure.db.rag_ingest_repository import RagIngestRepository
+    from wallet_ai.infrastructure.pii.masker import PIIMasker
+    from wallet_ai.infrastructure.providers.fake.embeddings import FakeEmbeddings
+
+    corpus = Path(__file__).resolve().parents[2] / "data" / "corpus"
+    pool = await asyncpg.create_pool(Settings().asyncpg_dsn, min_size=1, max_size=2)
+    try:
+        service = IngestService(
+            repo=RagIngestRepository(pool),
+            embeddings=FakeEmbeddings(),
+            pii=PIIMasker(),
+            chunker=build_chunker("fijo", 600, 100),
+            strategy="fijo",
+            chunk_params={"size": 600, "overlap": 100},
+            build_name=RAG_TEST_BUILD,
+            embedding_provider="fake",
+            embedding_model="fake",
+            embedding_version=FakeEmbeddings().model_version,
+        )
+        await service.ingest(corpus)
+    finally:
+        await pool.close()
+    # el router construye la configuracion RAG desde Settings en cada turno
+    monkeypatch.setenv("RAG_INDEX_BUILD", RAG_TEST_BUILD)
+    return RAG_TEST_BUILD
+
+
 @pytest.mark.integration
 @pytest.mark.asyncio
-async def test_f_prompt_injection_cannot_confirm(db_conn):
+async def test_f_prompt_injection_cannot_confirm(db_conn, rag_test_build):
     user = await _new_user(db_conn)
     account = await _new_account(db_conn, user)
     target_user = await _new_user(db_conn, display_name="Destino Inyección")
@@ -674,12 +714,16 @@ async def test_f_prompt_injection_cannot_confirm(db_conn):
     assert row["status"] == "pendiente"
 
     # la respuesta no afirma haberlo confirmado ni ejecutado
-    assert [e["event"] for e in events] == ["trace", "message", "done"]
-    content = events[1]["json"]["content"]
+    # US3-C: el mensaje inyectado pasa por search_policies (única herramienta, de solo lectura)
+    assert [e["event"] for e in events] == ["trace", "tool", "message", "done"]
+    assert events[1]["json"]["tool"] == "search_policies"
+    content = events[2]["json"]["content"]
     lowered = content.lower()
     assert "confirmad" not in lowered
     assert "enviad" not in lowered
     assert "completad" not in lowered
+    # el mensaje inyectado no tiene evidencia legitima (ni coincidencia lexica ni
+    # coseno >= umbral con el embedder v0.2.0): abstencion, cero citas
     assert content == ABSTENTION_MESSAGE
 
 

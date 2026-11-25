@@ -17,8 +17,12 @@ class Settings(BaseSettings):
     LLM_MODEL: str = "fake"
     EMBEDDING_PROVIDER: str = "fake"
     EMBEDDING_MODEL: str = "fake"
-    EMBEDDING_VERSION: str = "0.1.0"
+    EMBEDDING_VERSION: str = "0.2.0"
     RERANKER_PROVIDER: str = "fake"
+    # mismo nombre que genera scripts.ingest con --strategy fijo --size 600 --overlap 100
+    RAG_INDEX_BUILD: str = "fijo-s600-o100"
+    RAG_RETRIEVAL_MODE: str = "hybrid"
+    RAG_TOP_K: int = 5
     DATABASE_URL: str = "postgresql+asyncpg://localhost:5432/wallet"
     AUTH_JWT_SECRET: str = "dev-secret"
     APP_ENV: str = "dev"
@@ -42,7 +46,7 @@ class Settings(BaseSettings):
             raise ValueError("API key required for non-fake provider")
         if self.EMBEDDING_PROVIDER != "fake" and not has_key:
             raise ValueError("API key required for non-fake provider")
-        if self.RERANKER_PROVIDER != "fake" and not has_key:
+        if self.RERANKER_PROVIDER not in ("fake", "local") and not has_key:
             raise ValueError("API key required for non-fake provider")
         # prod must not use default secret
         if self.APP_ENV != "dev" and self.AUTH_JWT_SECRET == "change-me":

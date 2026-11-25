@@ -23,6 +23,7 @@ TOOL_NAMES = [
     "list_transactions",
     "find_recipient",
     "draft_transfer",
+    "search_policies",
 ]
 
 

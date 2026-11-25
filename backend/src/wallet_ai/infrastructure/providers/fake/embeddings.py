@@ -11,7 +11,9 @@ class FakeEmbeddings:
         self,
         dim: int = 128,
         model_name: str = "fake",
-        model_version: str = "0.1.0",
+        # 0.2.0: el algoritmo cambio (vectores centrados en cero); una build
+        # indexada con 0.1.0 no debe reutilizarse en silencio
+        model_version: str = "0.2.0",
     ) -> None:
         self.dim = dim
         self.model_name = model_name
@@ -31,7 +33,10 @@ class FakeEmbeddings:
             for tok in tokens:
                 h = hashlib.sha256(tok.encode("utf-8")).digest()
                 for i in range(self.dim):
-                    vec[i] += (h[i % len(h)] / 255.0) * ((-1.0) ** i)
+                    # centrado en cero: sin el -0.5 todos los textos comparten
+                    # el mismo patron de signos y casi cualquier par tiene
+                    # coseno alto (el umbral de evidencia dejaba pasar todo)
+                    vec[i] += (h[i % len(h)] / 255.0 - 0.5) * ((-1.0) ** i)
             # normalize
             norm = math.sqrt(sum(x * x for x in vec)) or 1.0
             res.append([x / norm for x in vec])

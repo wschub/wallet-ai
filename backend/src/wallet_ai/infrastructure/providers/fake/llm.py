@@ -146,7 +146,11 @@ class FakeLLM:
                 for call in calls
             )
             return LLMResponse(tool_calls=requests)
-        return LLMResponse(content=step.get("content", ""))
+        # el guion puede fijar citas en la respuesta final (tests adversariales)
+        return LLMResponse(
+            content=step.get("content", ""),
+            citations=tuple(step.get("citations") or ()),
+        )
 
     def _substitute(
         self, args: dict[str, Any], messages: list[dict], selected: str | None
@@ -186,7 +190,8 @@ class FakeLLM:
             return LLMResponse(
                 tool_calls=(ToolCallRequest(name=decision[1], arguments=decision[2]),)
             )
-        return LLMResponse(content=decision[1])
+        citations = decision[2] if len(decision) > 2 and isinstance(decision[2], tuple) else ()
+        return LLMResponse(content=decision[1], citations=tuple(citations))
 
     def _first_step(self, text: str) -> tuple:
         if _SALDO_RE.search(text):
@@ -199,7 +204,7 @@ class FakeLLM:
         if transfer:
             query = transfer.group(2).strip()
             return ("tool", "find_recipient", {"query": query})
-        return ("final", ABSTENTION_MESSAGE)
+        return ("tool", "search_policies", {"query": text})
 
     def _after_tool(self, last_user: str, tool_message: dict, selected: str | None) -> tuple:
         envelope = _parse_envelope(tool_message)
@@ -238,4 +243,19 @@ class FakeLLM:
                     f"Estado: {data.get('status')}. Queda pendiente de confirmación.",
                 )
             return ("final", CANNOT_DO_MESSAGE)
+        if tool == "search_policies":
+            passages = data.get("passages") or []
+            if not passages:
+                return ("final", ABSTENTION_MESSAGE)
+            top = passages[0]
+            textp = str(top.get("text") or "").strip()
+            head, sep, _rest = textp.partition(".")
+            first = head.strip() + ("." if sep else "")
+            if len(first) > 280:
+                first = first[:277] + "..."
+            title = str(top.get("title") or "").strip()
+            source = f" (Fuente: {title})" if title else ""
+            chunk_id = str(top.get("chunk_id") or "")
+            cits = (chunk_id,) if chunk_id else ()
+            return ("final", f"{first}{source}", cits)
         return ("final", ABSTENTION_MESSAGE)

@@ -561,7 +561,12 @@ async def test_vector_mode_finds_related_text_with_fake_embeddings(pool):
     for build in BUILDS:
         hits = await retrieve(_ctx(pool), PII_QUERY, _config(build=build, mode="vector"))
         assert hits, f"build={build}: la pata vectorial siempre devuelve candidatos"
-        assert hits[0].document_id == PII_DOC_ID
+        # CAMBIO DECLARADO (embedder centrado en cero, v0.2.0): antes se exigia
+        # el documento en el puesto 1; con vectores realistas basta con que
+        # este en el top-k de la configuracion (3).
+        assert PII_DOC_ID in {hit.document_id for hit in hits}, (
+            f"build={build}: el documento de datos no esta en el top-{len(hits)}"
+        )
         for hit in hits:
             assert hit.vector_rank is not None
             assert hit.vector_score is not None
