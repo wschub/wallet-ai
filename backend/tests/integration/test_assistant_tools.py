@@ -38,7 +38,7 @@ from wallet_ai.infrastructure.db.draft_repository import DraftRepository
 from wallet_ai.infrastructure.db.recipient_repository import RecipientRepository
 from wallet_ai.infrastructure.db.tool_call_audit import ConnectionToolCallAuditor
 
-TOOL_NAMES = ["get_balance", "list_transactions", "find_recipient", "draft_transfer"]
+TOOL_NAMES = ["get_balance", "list_transactions", "find_recipient", "draft_transfer", "search_policies"]
 HEX32 = re.compile(r"[0-9a-f]{32}")
 
 

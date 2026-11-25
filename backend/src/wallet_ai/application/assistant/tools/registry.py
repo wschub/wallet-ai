@@ -47,6 +47,7 @@ class Tool:
     args_model: type[BaseModel]
     roles: tuple[str, ...]
     fn: Any  # Callable[[ToolContext, BaseModel, ToolDeps], Awaitable[dict]]
+    read_only: bool = True
 
 
 @dataclass

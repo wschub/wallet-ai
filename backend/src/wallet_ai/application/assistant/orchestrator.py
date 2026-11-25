@@ -163,6 +163,16 @@ class DoneEvent:
         return {}
 
 
+
+@dataclass(frozen=True)
+class CitationsEvent:
+    citations: tuple[dict[str, Any], ...] = ()
+    type: ClassVar[str] = "citations"
+
+    def payload(self) -> dict[str, Any]:
+        return {"citations": [dict(c) for c in self.citations]}
+
+
 @dataclass(frozen=True)
 class ErrorEvent:
     detail: str = GENERIC_ERROR_MESSAGE
@@ -173,7 +183,7 @@ class ErrorEvent:
 
 
 AssistantEvent = (
-    TraceEvent | ToolEvent | MessageEvent | DraftEvent | ClarificationEvent | DoneEvent | ErrorEvent
+    TraceEvent | ToolEvent | MessageEvent | DraftEvent | ClarificationEvent | CitationsEvent | DoneEvent | ErrorEvent
 )
 
 
@@ -257,6 +267,9 @@ async def run_turn(
         draft: dict[str, Any] | None = None
         candidates: list[dict[str, Any]] = []
         ambiguous = False
+        contaminated = False
+        policy_passages: dict[str, dict[str, Any]] = {}
+        policy_called = False
 
         while True:
             # (c) maximo 4 iteraciones del bucle de herramientas
@@ -292,6 +305,21 @@ async def run_turn(
 
             if not response.tool_calls:
                 content = response.content or ""
+                validated_citations: list[str] = []
+                if policy_called:
+                    for cid in (response.citations or ()):
+                        if cid in policy_passages:
+                            validated_citations.append(cid)
+                    if (response.citations or ()) and len(validated_citations) != len(response.citations or ()):
+                        await _audit(
+                            "guardrail_block",
+                            {
+                            "reason": "invalid_citation",
+                            "removed": [c for c in (response.citations or ()) if c not in policy_passages],
+                        },
+                        )
+                    if not validated_citations:
+                        content = "No tengo documentación disponible para responder eso con tu nivel de acceso."
                 if draft is not None:
                     # (e) el modelo no puede afirmar que se movio dinero:
                     # la plantilla del servidor reemplaza el texto
@@ -308,6 +336,12 @@ async def run_turn(
                     content = NO_TRANSFER_TEMPLATE
                 message_length = len(content)
                 yield MessageEvent(content)
+                if policy_called:
+                    cite_list = [
+                        {"title": policy_passages[cid].get("title"), "section": policy_passages[cid].get("section")}
+                        for cid in validated_citations
+                    ]
+                    yield CitationsEvent(citations=tuple(cite_list))
                 yield DoneEvent()
                 status = "ok"
                 return
@@ -361,6 +395,18 @@ async def run_turn(
                         )
                         continue
 
+                # contaminacion del turno: search_policies devuelve contenido no confiable
+                if call.name in ("find_recipient", "draft_transfer") and contaminated:
+                    await _audit(
+                        "guardrail_block",
+                        {"reason": "contaminated_turn", "tool": call.name},
+                    )
+                    yield ToolEvent(call.name, "blocked")
+                    messages.append(
+                        _tool_envelope(call.name, {"error": _PERMISSION_DENIED})
+                    )
+                    continue
+
                 try:
                     result = await registry.invoke(call.name, ctx, call.arguments, deps)
                 except ToolValidationError:
@@ -384,6 +430,14 @@ async def run_turn(
 
                 yield ToolEvent(call.name, "ok")
                 messages.append(_tool_envelope(call.name, result))
+
+                if call.name == "search_policies":
+                    passages = result.get("passages") or []
+                    if passages:
+                        contaminated = True
+                        policy_called = True
+                        for p in passages:
+                            policy_passages[str(p.get("chunk_id"))] = p
 
                 if call.name == "find_recipient":
                     candidates = list(result.get("results") or [])
